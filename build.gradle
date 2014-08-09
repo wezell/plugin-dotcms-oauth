@@ -1,0 +1,57 @@
+apply plugin: 'application'
+apply plugin: 'osgi'
+apply plugin: 'war'
+apply plugin: 'eclipse'
+
+sourceCompatibility = '1.6'
+version = '0.1'
+
+
+repositories {
+	maven {
+        url "http://repo.dotcms.com/artifactory/libs-release"
+    }
+}
+
+dependencies {
+	compile fileTree(dir: 'src/main/resources/libs', include: '*.jar')
+	compile (group: 'com.dotcms', name: 'dotcms', version: '2.5.1'){
+		transitive = true
+	}
+	providedCompile "javax.servlet:servlet-api:2.5"
+}
+
+jar {
+    manifest {
+        name = 'OAuth Single Signon'
+        instruction '-includeresource', 'libs'
+        instruction 'Bundle-Vendor', 'dotcms'
+        instruction 'Export-Package', 'com.dotcms.osgi.oauth.*'
+
+        instruction 'Bundle-Description', 'OAuth Single Signon'
+        instruction 'Bundle-DocURL', 'http://dotcms.com'
+        instruction 'Bundle-Activator', 'com.dotcms.osgi.oauth.Activator'
+        instruction 'DynamicImport-Package', '*'
+        instruction 'Import-Package', 'org.scribe.builder.api.*;version=0,org.scribe.builder.*;version=0,!org.apache.commons.codec.binary.*,*;version=0'
+    }
+}
+
+task removeVersionsOnManifest (dependsOn: ['jar']) << {
+	def manifest1=new java.util.jar.Manifest(new FileInputStream('build/tmp/jar/MANIFEST.MF'))
+	def imports = manifest1.getMainAttributes().find { it.key.toString()=="Import-Package" }
+	imports.value=imports.value.toString().replaceAll(~/;version="[\(\[][0-9\.]+,[0-9\.]+[\)\]]"/,'')
+	manifest1.write(new FileOutputStream("build/tmp/jar/MANIFEST_NOVERSIONS.MF"))
+}
+
+
+task osgijar(type: Jar, dependsOn: ['removeVersionsOnManifest'] ) { 
+    appendix = "generatedjar" 
+    from zipTree(jar.archivePath) // add original content 
+    manifest {
+    	from('build/tmp/jar/MANIFEST_NOVERSIONS.MF')
+    } 
+} 
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '1.8'
+}
