@@ -15,4 +15,13 @@ To use this plugin, you will need to have a developer account with the providers
 See the oauth.properties for the required scopes.
 
 
+To download and build,clone the repo, cd into the cloned directoy and run
+```
+git clone https://github.com/dotCMS/plugin-dotcms-oauth.git
+cd ./plugin-dotcms-oauth
+MAKE CONFIG CHANGES
+./gradlew jar
+```
+ the plugin will be built under ./build/lib
+ 
 
