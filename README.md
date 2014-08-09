@@ -8,9 +8,9 @@ It provides a Google and a Facebook implementation.
 * https://developers.facebook.com/docs/facebook-login/v2.1
 
 To use this plugin, you will need to have a developer account with the providers (Google, Facebook) and a application registered with the providers.  In each application, make sure you: 
-1. Authorize the application scopes required by the plugin
-2. Authorize the Callback host to receive the callback.
-3. Copy the application API key and API secret and set them in the oauth.properties file.
+* Authorize the application scopes required by the plugin
+* Authorize the Callback host to receive the callback.
+* Copy the application API key and API secret and set them in the oauth.properties file.
 
 See the oauth.properties for the required scopes.
 
