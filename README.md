@@ -31,4 +31,13 @@ This plugin "rewrites" the urls Dotcms uses to login (both front and backend) an
 
 https://github.com/dotCMS/plugin-dotcms-oauth/blob/master/src/main/java/com/dotcms/osgi/oauth/Activator.java
 
+If you want to avoid using oauth and authenticate via the standard Dotcms authentication, you can pass the url parameter native=true like this:
+
+http://localhost:8080/html/portal/login.jsp?native=true 
+or 
+http://localhost:8080/dotCMS/login?native=true
+
+
+
+
 
