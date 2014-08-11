@@ -33,9 +33,11 @@ https://github.com/dotCMS/plugin-dotcms-oauth/blob/master/src/main/java/com/dotc
 
 If you want to avoid using oauth and authenticate via the standard Dotcms authentication, you can pass the url parameter native=true like this:
 
+
 http://localhost:8080/html/portal/login.jsp?native=true 
 or 
-http://localhost:8080/dotCMS/login?native=true
+
+http://localhost:8080/dotCMS/login?native=true 
 
 
 
