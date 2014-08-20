@@ -42,5 +42,25 @@ http://localhost:8080/dotCMS/login?native=true
 ````
 
 
+## OSGi Exports
+Below is a list of exports that are required by this plugin
+```
+org.apache.velocity.tools.view.tools,
+org.apache.velocity.tools.view.servlet,
+org.apache.velocity.tools.view,
+javax.xml.bind,
+com.liferay.portal.util,
+com.liferay.portal.model,
+com.liferay.portal.auth,
+com.dotmarketing.viewtools,
+com.dotmarketing.util.json,
+com.dotmarketing.util,
+com.dotmarketing.osgi,
+com.dotmarketing.filters,
+com.dotmarketing.exception,
+com.dotmarketing.cms.login.factories,
+com.dotmarketing.cms.factories,
+com.dotmarketing.business,
+```
 
 
