@@ -1,8 +1,8 @@
 package org.scribe.builder;
 
-import static org.junit.Assert.*;
+import static com.dotcms.repackage.org.junit.Assert.*;
 
-import org.junit.*;
+import com.dotcms.repackage.org.junit.*;
 import org.scribe.builder.api.*;
 import org.scribe.model.*;
 import org.scribe.oauth.*;

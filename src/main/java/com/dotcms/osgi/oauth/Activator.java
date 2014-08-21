@@ -1,20 +1,24 @@
 package com.dotcms.osgi.oauth;
 
+
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.felix.http.api.ExtHttpService;
-import org.osgi.framework.BundleContext;
-import org.osgi.framework.ServiceReference;
-import org.osgi.util.tracker.ServiceTracker;
-import org.tuckey.web.filters.urlrewrite.Condition;
-import org.tuckey.web.filters.urlrewrite.NormalRule;
-import org.tuckey.web.filters.urlrewrite.Rule;
-
+import com.dotcms.osgi.oauth.util.OAuthPropertyBundle;
+import com.dotcms.osgi.oauth.viewtool.OAuthToolInfo;
+import com.dotcms.repackage.org.apache.felix.http.api.ExtHttpService;
+import com.dotcms.repackage.org.osgi.framework.BundleContext;
+import com.dotcms.repackage.org.osgi.framework.ServiceReference;
+import com.dotcms.repackage.org.osgi.util.tracker.ServiceTracker;
+import com.dotcms.repackage.org.tuckey.web.filters.urlrewrite.Condition;
+import com.dotcms.repackage.org.tuckey.web.filters.urlrewrite.NormalRule;
+import com.dotcms.repackage.org.tuckey.web.filters.urlrewrite.Rule;
 import com.dotmarketing.filters.CMSFilter;
 import com.dotmarketing.filters.DotUrlRewriteFilter;
 import com.dotmarketing.osgi.GenericBundleActivator;
 import com.dotmarketing.util.Logger;
+
+
 
 public class Activator extends GenericBundleActivator {
 
@@ -26,12 +30,22 @@ public class Activator extends GenericBundleActivator {
 
 	@SuppressWarnings("unchecked")
 	public void start(BundleContext context) throws Exception {
-
+		Logger.info(this.getClass(), "Starting OSGi OAuth Filter");
 		serviceTracker = new ServiceTracker(context, OAuth2Servlet.class.getName(), null);
 
 		// Initializing services...
 		initializeServices(context);
-		Logger.info(this.getClass(), "Starting OSGi OAuth Filter");
+
+		
+		
+		String useFor = OAuthPropertyBundle.getProperty("USE_OAUTH_FOR","").toLowerCase();
+		boolean frontEnd = useFor.contains ("frontend");
+		boolean backEnd = useFor.contains ("backend");
+
+		registerViewToolService(context, new OAuthToolInfo());
+		
+		
+		
 		ServiceReference sRef = context.getServiceReference(ExtHttpService.class.getName());
         if ( sRef != null ) {
 
@@ -71,60 +85,61 @@ public class Activator extends GenericBundleActivator {
         condition2.setOperator("notequal");
         condition2.setValue( "^.+$" );
 
-        
-        
-        rule = new NormalRule();
-		rule.setName("oauth-rule" + rules.size());
-		rule.setFrom("^/dotCMS/login.*$");
-		rule.setTo("/app" + OAUTH_URL);
-		rule.addCondition(condition1);
-		rule.addCondition(condition2);
-		addRewriteRule(rule);
-		rules.add(rule);
+        rules = new ArrayList<Rule>();
+        if(frontEnd){
+	        rule = new NormalRule();
+			rule.setName("oauth-rule" + rules.size());
+			rule.setFrom("^/dotCMS/login.*$");
+			rule.setTo("/app" + OAUTH_URL);
+			rule.addCondition(condition1);
+			rule.addCondition(condition2);
+			addRewriteRule(rule);
+			rules.add(rule);
+        }
 		
 		
-		
-		rule = new NormalRule();
-		rule.setName("oauth-rule" + rules.size());
-		rule.setFrom("^/html/portal/login.*$");
-		rule.setTo("/app" + OAUTH_URL + "?referrer=/c/portal/layout");
-		rule.addCondition(condition1);
-		rule.addCondition(condition2);
-		addRewriteRule(rule);
-		rules.add(rule);
-		
-		
-		rule = new NormalRule();
-		rule.setName("oauth-rule" + rules.size());
-		rule.setFrom("^/c/public/login.*$");
-		rule.setTo("/app" + OAUTH_URL + "?referrer=/c/portal/layout");
-		rule.addCondition(condition1);
-		rule.addCondition(condition2);
-		addRewriteRule(rule);
-		rules.add(rule);
-		
-		
-		rule = new NormalRule();
-		rule.setName("oauth-rule" + rules.size());
-		rule.setFrom("^/c/portal_public/login.*$");
-		rule.setTo("/app" + OAUTH_URL + "?referrer=/c/portal/layout");
-		rule.addCondition(condition1);
-		rule.addCondition(condition2);
-		addRewriteRule(rule);
-		rules.add(rule);
-		
-		
-		
-		
-		rule = new NormalRule();
-		rule.setName("oauth-rule" + rules.size());
-		rule.setFrom("^/c/portal/logout.*$");
-		rule.setTo("/c/portal/logout?referer=/");
-		rule.addCondition(condition1);
-		rule.addCondition(condition2);
-		addRewriteRule(rule);
-		rules.add(rule);
-		
+        if(backEnd){
+			rule = new NormalRule();
+			rule.setName("oauth-rule" + rules.size());
+			rule.setFrom("^/html/portal/login.*$");
+			rule.setTo("/app" + OAUTH_URL + "?referrer=/c/portal/layout");
+			rule.addCondition(condition1);
+			rule.addCondition(condition2);
+			addRewriteRule(rule);
+			rules.add(rule);
+			
+			
+			rule = new NormalRule();
+			rule.setName("oauth-rule" + rules.size());
+			rule.setFrom("^/c/public/login.*$");
+			rule.setTo("/app" + OAUTH_URL + "?referrer=/c/portal/layout");
+			rule.addCondition(condition1);
+			rule.addCondition(condition2);
+			addRewriteRule(rule);
+			rules.add(rule);
+			
+			
+			rule = new NormalRule();
+			rule.setName("oauth-rule" + rules.size());
+			rule.setFrom("^/c/portal_public/login.*$");
+			rule.setTo("/app" + OAUTH_URL + "?referrer=/c/portal/layout");
+			rule.addCondition(condition1);
+			rule.addCondition(condition2);
+			addRewriteRule(rule);
+			rules.add(rule);
+			
+			
+			
+			
+			rule = new NormalRule();
+			rule.setName("oauth-rule" + rules.size());
+			rule.setFrom("^/c/portal/logout.*$");
+			rule.setTo("/c/portal/logout?referer=/");
+			rule.addCondition(condition1);
+			rule.addCondition(condition2);
+			addRewriteRule(rule);
+			rules.add(rule);
+        }
 		
 		Logger.info(this.getClass(), "We now have " + DotUrlRewriteFilter.getUrlRewriteFilter().getRules().size() + " rules");
 
@@ -142,6 +157,7 @@ public class Activator extends GenericBundleActivator {
 			
 			DotUrlRewriteFilter.getUrlRewriteFilter().removeRule(rule);
 		}
+		unregisterViewToolServices();
 		Logger.info(this.getClass(), "We now have " + DotUrlRewriteFilter.getUrlRewriteFilter().getRules().size() + " rules");
 		// close service tracker to stop tracking
 		serviceTracker.close();

@@ -21,7 +21,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 
-import org.osgi.util.tracker.ServiceTracker;
+
 import org.scribe.builder.ServiceBuilder;
 import org.scribe.builder.api.Api;
 import org.scribe.model.OAuthRequest;
@@ -46,13 +46,13 @@ import com.liferay.portal.util.WebKeys;
 
 public class OAuth2Servlet extends HttpServlet {
 
-	private ServiceTracker serviceTracker;
+	private com.dotcms.repackage.org.osgi.util.tracker.ServiceTracker serviceTracker;
 
 	public void destroy() {
 
 	}
 
-	public OAuth2Servlet(ServiceTracker serviceTracker) {
+	public OAuth2Servlet(com.dotcms.repackage.org.osgi.util.tracker.ServiceTracker serviceTracker) {
 		this.serviceTracker = serviceTracker;
 	}
 
@@ -220,7 +220,12 @@ public class OAuth2Servlet extends HttpServlet {
 
 		StringTokenizer st = new StringTokenizer(ROLES_TO_ADD, ",;");
 		while (st.hasMoreElements()) {
-			Role r = APILocator.getRoleAPI().loadRoleByKey(st.nextToken().trim());
+			String roleKey = st.nextToken().trim();
+			Role r = APILocator.getRoleAPI().loadRoleByKey(roleKey);
+			if(r==null){
+				continue;
+				
+			}
 			if (!APILocator.getRoleAPI().doesUserHaveRole(u, r)) {
 				APILocator.getRoleAPI().addRoleToUser(r, u);
 			}

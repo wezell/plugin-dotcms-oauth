@@ -1,7 +1,7 @@
 package org.scribe.utils;
 
-import org.junit.*;
-import static org.junit.Assert.*;
+import com.dotcms.repackage.org.junit.*;
+import static com.dotcms.repackage.org.junit.Assert.*;
 
 /**
  * @author: Pablo Fernandez

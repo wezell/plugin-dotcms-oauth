@@ -1,7 +1,7 @@
 package org.scribe.utils;
 
 import java.util.*;
-import org.junit.*;
+import com.dotcms.repackage.org.junit.*;
 
 /**
  * @author: Pablo Fernandez

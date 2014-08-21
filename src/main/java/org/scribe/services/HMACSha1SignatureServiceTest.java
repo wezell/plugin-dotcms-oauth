@@ -1,8 +1,8 @@
 package org.scribe.services;
 
-import static org.junit.Assert.*;
+import static com.dotcms.repackage.org.junit.Assert.*;
 
-import org.junit.*;
+import com.dotcms.repackage.org.junit.*;
 import org.scribe.exceptions.*;
 
 public class HMACSha1SignatureServiceTest
