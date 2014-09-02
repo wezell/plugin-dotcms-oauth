@@ -57,7 +57,9 @@ public class OAuth2Servlet extends HttpServlet {
 	}
 
 	private static String CALLBACK_HOST, CALLBACK_URL, ROLES_TO_ADD;
-
+	String useFor = OAuthPropertyBundle.getProperty("USE_OAUTH_FOR","").toLowerCase();
+	boolean frontEnd = useFor.contains ("frontend");
+	boolean backEnd = useFor.contains ("backend");
 	@Override
 	public void service(ServletRequest req, ServletResponse res) throws IOException, ServletException {
 
@@ -231,8 +233,10 @@ public class OAuth2Servlet extends HttpServlet {
 			}
 		}
 		LoginFactory.doCookieLogin(PublicEncryptionFactory.encryptString(u.getUserId()), request, response);
-		PrincipalThreadLocal.setName(u.getUserId());
-		request.getSession().setAttribute(WebKeys.USER_ID, u.getUserId());
+		if(backEnd){
+			PrincipalThreadLocal.setName(u.getUserId());
+			request.getSession().setAttribute(WebKeys.USER_ID, u.getUserId());
+		}
 
 		return u;
 
