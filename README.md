@@ -63,4 +63,16 @@ com.dotmarketing.cms.factories,
 com.dotmarketing.business,
 ```
 
+## Troubleshooting
+If you get an exception with the TLS algorithm, e.g. something like:
+
+`javax.net.ssl.SSLHandshakeException: Could not generate secret`
+
+You can disable DHE as a supported algorithm in your `JAVA_HOME/lib/security/java.security` file
+jdk.tls.disabledAlgorithms=SSLv3, DHE.
+
+
+
+
+jdk.tls.disabledAlgorithms=SSLv3, DHE.
 
