@@ -13,7 +13,6 @@ import com.dotcms.repackage.org.osgi.util.tracker.ServiceTracker;
 import com.dotcms.repackage.org.tuckey.web.filters.urlrewrite.Condition;
 import com.dotcms.repackage.org.tuckey.web.filters.urlrewrite.NormalRule;
 import com.dotcms.repackage.org.tuckey.web.filters.urlrewrite.Rule;
-import com.dotmarketing.filters.CMSFilter;
 import com.dotmarketing.filters.DotUrlRewriteFilter;
 import com.dotmarketing.osgi.GenericBundleActivator;
 import com.dotmarketing.util.Logger;
@@ -24,14 +23,14 @@ public class Activator extends GenericBundleActivator {
 
 	private List<Rule> rules = new ArrayList<Rule>();
 	private ExtHttpService httpService;
-	private ServiceTracker serviceTracker;
+	private ServiceTracker<ExtHttpService, ExtHttpService> serviceTracker;
 	private OAuth2Servlet servlet;
 	private final String OAUTH_URL = "/oauth2";
 
 	@SuppressWarnings("unchecked")
 	public void start(BundleContext context) throws Exception {
 		Logger.info(this.getClass(), "Starting OSGi OAuth Filter");
-		serviceTracker = new ServiceTracker(context, OAuth2Servlet.class.getName(), null);
+		serviceTracker = new ServiceTracker<ExtHttpService, ExtHttpService>(context, OAuth2Servlet.class.getName(), null);
 
 		// Initializing services...
 		initializeServices(context);
@@ -46,22 +45,20 @@ public class Activator extends GenericBundleActivator {
 		
 		
 		
-		ServiceReference sRef = context.getServiceReference(ExtHttpService.class.getName());
+		ServiceReference<ExtHttpService> sRef = (ServiceReference<ExtHttpService>) context.getServiceReference(ExtHttpService.class.getName());
         if ( sRef != null ) {
 
         	serviceTracker.addingService( sRef );
             httpService = (ExtHttpService) context.getService( sRef );
             try {
                 //Registering a simple test servlet
-            	servlet = new OAuth2Servlet( serviceTracker );
+            	servlet = new OAuth2Servlet();
                 httpService.registerServlet( OAUTH_URL, servlet, null, null );
 
             } catch ( Exception e ) {
                 e.printStackTrace();
             }
         }
-
-		CMSFilter.addExclude("/app" + OAUTH_URL);
 
 		// open service tracker to start tracking
 		serviceTracker.open();
@@ -150,7 +147,6 @@ public class Activator extends GenericBundleActivator {
         if ( httpService != null && servlet != null ) {
             httpService.unregisterServlet( servlet );
         }
-		CMSFilter.removeExclude("/app" + OAUTH_URL);
 		Logger.info(this.getClass(), "Removing OSGi OAuth Servlet");
 		for(Rule rule : rules){
 

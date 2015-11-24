@@ -1,9 +1,10 @@
-apply plugin: 'application'
 apply plugin: 'osgi'
-apply plugin: 'war'
 apply plugin: 'eclipse'
+apply plugin: 'propdeps'
+apply plugin: 'propdeps-maven'
+apply plugin: 'propdeps-eclipse'
 
-sourceCompatibility = '1.6'
+sourceCompatibility = '1.8'
 version = '0.1'
 
 
@@ -14,16 +15,23 @@ repositories {
 }
 
 dependencies {
-	compile fileTree(dir: 'src/main/resources/libs', include: '*.jar')
-	compile (group: 'com.dotcms', name: 'dotcms', version: '2.5.1'){
-		transitive = true
+	compile('com.dotcms:dotcms:3.2+') { transitive = true }
+	provided('javax.servlet:servlet-api:2.5')
+}
+
+buildscript {
+	repositories {
+		maven { url 'http://repo.spring.io/plugins-release' }
 	}
-	providedCompile "javax.servlet:servlet-api:2.5"
+	dependencies {
+		classpath 'org.springframework.build.gradle:propdeps-plugin:0.0.7'
+	}
 }
 
 jar {
     manifest {
         name = 'OAuth Single Signon'
+        symbolicName = 'com.dotcms.osgi.oauth'
         instruction '-includeresource', 'libs'
         instruction 'Bundle-Vendor', 'dotcms'
         instruction 'Export-Package', 'com.dotcms.osgi.oauth.*'
