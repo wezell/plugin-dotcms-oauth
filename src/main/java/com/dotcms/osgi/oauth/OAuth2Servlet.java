@@ -39,6 +39,7 @@ import com.dotmarketing.cms.login.factories.LoginFactory;
 import com.dotmarketing.exception.DotDataException;
 import com.dotmarketing.util.Logger;
 import com.dotmarketing.util.UUIDGenerator;
+import com.dotmarketing.util.json.JSONObject;
 import com.dotmarketing.viewtools.JSONTool;
 import com.liferay.portal.auth.PrincipalThreadLocal;
 import com.liferay.portal.model.User;
@@ -46,20 +47,21 @@ import com.liferay.portal.util.WebKeys;
 
 public class OAuth2Servlet extends HttpServlet {
 
-	private com.dotcms.repackage.org.osgi.util.tracker.ServiceTracker serviceTracker;
-
+	private static final long serialVersionUID = -7036009330382977246L;
+	
 	public void destroy() {
 
 	}
 
-	public OAuth2Servlet(com.dotcms.repackage.org.osgi.util.tracker.ServiceTracker serviceTracker) {
-		this.serviceTracker = serviceTracker;
+	public OAuth2Servlet() {
+		
 	}
 
-	private static String CALLBACK_HOST, CALLBACK_URL, ROLES_TO_ADD;
+	private static String CALLBACK_URL, ROLES_TO_ADD;
 	String useFor = OAuthPropertyBundle.getProperty("USE_OAUTH_FOR","").toLowerCase();
 	boolean frontEnd = useFor.contains ("frontend");
 	boolean backEnd = useFor.contains ("backend");
+	
 	@Override
 	public void service(ServletRequest req, ServletResponse res) throws IOException, ServletException {
 
@@ -69,7 +71,10 @@ public class OAuth2Servlet extends HttpServlet {
 		String path = request.getRequestURI();
 		User user = null;
 
-		String API_KEY, API_SECRET, OAUTH_PROVIDER, PROTECTED_RESOURCE_URL, SCOPE, FIRST_NAME_PROP, LAST_NAME_PROP;
+		String CALLBACK_HOST, API_KEY, API_SECRET, OAUTH_PROVIDER, PROTECTED_RESOURCE_URL, SCOPE, FIRST_NAME_PROP, LAST_NAME_PROP;
+		
+		CALLBACK_HOST = request.getScheme() + "://" + ((request.getServerPort() == 80 || request.getServerPort() == 443) ? 
+						request.getServerName() : request.getServerName()+":"+request.getServerPort());
 
 		OAUTH_PROVIDER = OAuthPropertyBundle.getProperty("DEFAULT_OAUTH_PROVIDER");
 		if (session.getAttribute("OAUTH_PROVIDER") != null) {
@@ -120,14 +125,20 @@ public class OAuth2Servlet extends HttpServlet {
 		}
 
 		// set up Oauth service
-		OAuthService service = new ServiceBuilder().provider(provider.getClass()).apiKey(API_KEY).apiSecret(API_SECRET).scope(SCOPE)
-				.callback(CALLBACK_HOST + CALLBACK_URL).build();
+		OAuthService service = new ServiceBuilder()
+				.provider(provider.getClass())
+				.apiKey(API_KEY)
+				.apiSecret(API_SECRET)
+				.scope(SCOPE)
+				.callback(CALLBACK_HOST + CALLBACK_URL)
+				.build();
 		if (path.contains(CALLBACK_URL)) {
 			try {
 
-				User u = doCallback(request, response, service, PROTECTED_RESOURCE_URL, FIRST_NAME_PROP, LAST_NAME_PROP);
+				doCallback(request, response, service, PROTECTED_RESOURCE_URL, FIRST_NAME_PROP, LAST_NAME_PROP);
+				
 				// redirect onward!
-				String authorizationUrl = (String) request.getSession().getAttribute("OAUTH_REDIRECT");
+				String authorizationUrl = (String) session.getAttribute("OAUTH_REDIRECT");
 				if (authorizationUrl == null)
 					authorizationUrl = "/?logged-in";
 				request.getSession().removeAttribute("OAUTH_REDIRECT");
@@ -154,7 +165,6 @@ public class OAuth2Servlet extends HttpServlet {
 
 		ROLES_TO_ADD = OAuthPropertyBundle.getProperty("ROLES_TO_ADD");
 		CALLBACK_URL = OAuthPropertyBundle.getProperty("CALLBACK_URL");
-		CALLBACK_HOST = OAuthPropertyBundle.getProperty("CALLBACK_HOST");
 
 	}
 
@@ -179,7 +189,7 @@ public class OAuth2Servlet extends HttpServlet {
 		service.signRequest(accessToken, quest);
 		Response sponse = quest.send();
 
-		com.dotmarketing.util.json.JSONObject json = new JSONTool().generate(sponse.getBody());
+		JSONObject json = new JSONTool().generate(sponse.getBody());
 
 		User sys = APILocator.getUserAPI().getSystemUser();
 		User u = null;
