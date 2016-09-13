@@ -3,9 +3,9 @@ package org.scribe.utils;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 
-import com.dotcms.repackage.org.junit.Test;
+import org.junit.Test;
 
-import static com.dotcms.repackage.org.junit.Assert.*;
+import static org.junit.Assert.*;
 
 public class StreamUtilsTest
 {

@@ -1,10 +1,10 @@
 package org.scribe.model;
 
-import static com.dotcms.repackage.org.junit.Assert.*;
+import static org.junit.Assert.*;
 
 import java.io.*;
 
-import com.dotcms.repackage.org.junit.*;
+import org.junit.*;
 
 public class ResponseTest
 {

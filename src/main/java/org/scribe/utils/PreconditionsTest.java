@@ -1,6 +1,6 @@
 package org.scribe.utils;
 
-import com.dotcms.repackage.org.junit.*;
+import org.junit.*;
 
 public class PreconditionsTest
 {
