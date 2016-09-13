@@ -1,7 +1,7 @@
 package org.scribe.model;
 
-import static com.dotcms.repackage.junit.framework.Assert.*;
-import com.dotcms.repackage.org.junit.*;
+import static org.junit.Assert.*;
+import org.junit.*;
 
 public class TokenTest
 {

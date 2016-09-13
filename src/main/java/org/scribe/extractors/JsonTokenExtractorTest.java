@@ -1,8 +1,8 @@
 package org.scribe.extractors;
 
-import static com.dotcms.repackage.org.junit.Assert.*;
+import static org.junit.Assert.*;
 
-import com.dotcms.repackage.org.junit.*;
+import org.junit.*;
 import org.scribe.model.*;
 
 public class JsonTokenExtractorTest

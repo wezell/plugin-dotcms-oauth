@@ -5,7 +5,7 @@ apply plugin: 'propdeps-maven'
 apply plugin: 'propdeps-eclipse'
 
 sourceCompatibility = '1.8'
-version = '0.1'
+version = '0.2'
 
 
 repositories {
@@ -15,7 +15,7 @@ repositories {
 }
 
 dependencies {
-	compile('com.dotcms:dotcms:3.2+') { transitive = true }
+	compile('com.dotcms:dotcms:3.5.1') { transitive = true }
 	provided('javax.servlet:servlet-api:2.5')
 }
 
@@ -36,7 +36,7 @@ jar {
         instruction 'Bundle-Vendor', 'dotcms'
         instruction 'Export-Package', 'com.dotcms.osgi.oauth.*'
 
-        instruction 'Bundle-Description', 'OAuth Single Signon'
+        instruction 'Bundle-Description', 'OAuth Single Sign-On'
         instruction 'Bundle-DocURL', 'http://dotcms.com'
         instruction 'Bundle-Activator', 'com.dotcms.osgi.oauth.Activator'
         instruction 'DynamicImport-Package', '*'

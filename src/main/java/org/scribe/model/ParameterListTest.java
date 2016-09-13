@@ -1,11 +1,10 @@
 package org.scribe.model;
 
-import com.dotcms.repackage.org.junit.Assert;
-import com.dotcms.repackage.org.junit.Before;
-import com.dotcms.repackage.org.junit.Test;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
 
-import static com.dotcms.repackage.org.junit.Assert.assertEquals;
-import static com.dotcms.repackage.org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertNotSame;
 
 /**
  * @author: Pablo Fernandez
