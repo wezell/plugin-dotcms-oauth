@@ -64,7 +64,7 @@ public class OAuthEncoderTest
 
     for(int i = 0; i < sources.length; i++)
     {
-      Assert.assertEquals(encoded[i], OAuthEncoder.encode(sources[i]));
+      assertEquals(encoded[i], OAuthEncoder.encode(sources[i]));
     }
   }
 }

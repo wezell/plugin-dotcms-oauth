@@ -1,3 +1,4 @@
+apply plugin: 'application'
 apply plugin: 'osgi'
 apply plugin: 'eclipse'
 apply plugin: 'propdeps'
@@ -12,11 +13,17 @@ repositories {
 	maven {
         url "http://repo.dotcms.com/artifactory/libs-release"
     }
+    maven {
+        url "http://repo.dotcms.com/artifactory/libs-snapshot-local"
+    }
 }
 
 dependencies {
-	compile('com.dotcms:dotcms:3.5.1') { transitive = true }
-	provided('javax.servlet:servlet-api:2.5')
+    compile (group: 'com.dotcms', name: 'dotcms', version: '4.1.0_825349f-SNAPSHOT'){
+        transitive = true
+    }
+    compile "javax.servlet:javax.servlet-api:3.1.0"
+    testCompile 'junit:junit:4.12'
 }
 
 buildscript {
