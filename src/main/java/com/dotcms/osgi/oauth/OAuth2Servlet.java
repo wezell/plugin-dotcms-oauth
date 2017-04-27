@@ -187,7 +187,7 @@ public class OAuth2Servlet extends HttpServlet {
 					doLog("OAuth2Servlet: CMS USER IS: " + user);
 				}
 
-				if (this.isBackEnd) {
+				if (this.isBackEnd && null == user) {
 
 					try {
 						user = com.liferay.portal.util.PortalUtil.getUser(request);
