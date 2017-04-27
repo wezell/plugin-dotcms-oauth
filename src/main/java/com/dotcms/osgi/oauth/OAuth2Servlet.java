@@ -81,6 +81,10 @@ public class OAuth2Servlet extends HttpServlet {
 		this.loginServiceAPI = APILocator.getLoginServiceAPI();
 	}
 
+	private void doLog (final String msg) {
+		System.out.println(msg);
+	}
+
 
 	@Override
 	public void service(final ServletRequest req,
@@ -103,7 +107,7 @@ public class OAuth2Servlet extends HttpServlet {
 
 		// if the user is already logged in
 		if (user == null) {
-
+			doLog("OAuth2Servlet: User is null");
 			// set up Oauth service
 			OAuthService service = new ServiceBuilder()
 					.provider(provider.getClass())
@@ -115,6 +119,7 @@ public class OAuth2Servlet extends HttpServlet {
 
 			if (null != request.getParameter(CODE_PARAM_KEY)) {
 
+				doLog("OAuth2Servlet: code param found, doing callback");
 				try {
 
 					this.doCallback(request, response, service,
@@ -138,6 +143,7 @@ public class OAuth2Servlet extends HttpServlet {
 
 			} else {
 				// Send for authorization
+				doLog("OAuth2Servlet: sending for authorization");
 				this.sendForAuthorization(request, response, service);
 			}
 		} else {
@@ -148,6 +154,7 @@ public class OAuth2Servlet extends HttpServlet {
 
 	private void alreadyLoggedIn(HttpServletResponse response) throws IOException {
 
+		doLog("OAuth2Servlet: already login, redirecting to /dotAdmin");
 		Logger.error(this.getClass(), "Already logged in, redirecting home");
 
 		response.sendRedirect((this.isBackEnd)?"/dotAdmin":"/?already-logged-in");
@@ -174,11 +181,17 @@ public class OAuth2Servlet extends HttpServlet {
 
 		try {
 			if (null != session) {
-				user = (User) session.getAttribute(com.dotmarketing.util.WebKeys.CMS_USER);
-				if (user == null) {
+
+				if (this.isFrontEnd) {
+					user = (User) session.getAttribute(com.dotmarketing.util.WebKeys.CMS_USER);
+					doLog("OAuth2Servlet: CMS USER IS: " + user);
+				}
+
+				if (this.isBackEnd) {
 
 					try {
 						user = com.liferay.portal.util.PortalUtil.getUser(request);
+						doLog("OAuth2Servlet: DOT8 USER IS: " + user);
 					} catch (Exception nsue) {
 						Logger.warn(this, "Exception trying to getUser: " + nsue.getMessage(), nsue);
 					}
@@ -220,7 +233,7 @@ public class OAuth2Servlet extends HttpServlet {
 		final Verifier verifier = new Verifier(request.getParameter("code"));
 		final Token accessToken = service.getAccessToken(null, verifier);
 
-		Logger.debug(this.getClass(), "Got the Access Token!");
+		doLog("OAuth2Servlet: Got the Access Token!");
 
 		final OAuthRequest quest = new OAuthRequest(Verb.GET, callBackUrl);
 		service.signRequest(accessToken, quest);
@@ -234,14 +247,16 @@ public class OAuth2Servlet extends HttpServlet {
 
 		try {
 
+			doLog("OAuth2Servlet: Loading an user!");
 			user = APILocator.getUserAPI().loadByUserByEmail(json.getString("email"), sys, false);
+			doLog("OAuth2Servlet: User loaded!");
 		} catch (Exception e) {
 			Logger.warn(this, "No matching user, creating");
 		}
 
 		if (user == null) {
 			try {
-
+				doLog("OAuth2Servlet: User not found, creating one!");
 				user = this.createUser(firstNameProp, lastNameProp, json, sys);
 			} catch (Exception e) {
 				Logger.warn(this, "Error creating user:" + e.getMessage(), e);
@@ -251,17 +266,19 @@ public class OAuth2Servlet extends HttpServlet {
 
 		if (user.isActive()) {
 
+			doLog("OAuth2Servlet: User is active, adding roles!");
 			final StringTokenizer st = new StringTokenizer(ROLES_TO_ADD, ",;");
 			while (st.hasMoreElements()) {
 
 				this.addRole(user, st);
 			}
 
-
+			doLog("OAuth2Servlet: Doing login!");
 			this.loginServiceAPI.doCookieLogin(PublicEncryptionFactory.encryptString
 					(user.getUserId()), request, response, this.rememberMe);
 
 			if (isBackEnd) {
+				doLog("OAuth2Servlet: Finish BE login!");
 				PrincipalThreadLocal.setName(user.getUserId());
 				final HttpSession httpSession = request.getSession(true);
 				httpSession.setAttribute(WebKeys.USER_ID, user.getUserId());
@@ -325,6 +342,7 @@ public class OAuth2Servlet extends HttpServlet {
 		request.getSession().setAttribute(OAUTH_REDIRECT, retUrl);
 
 		final String authorizationUrl = service.getAuthorizationUrl(null);
+		doLog("OAuth2Servlet: Redirecting for authentication to: " + authorizationUrl);
 		response.sendRedirect(authorizationUrl);
 	}
 
