@@ -1,3 +1,4 @@
+apply plugin: 'java'
 apply plugin: 'application'
 apply plugin: 'osgi'
 apply plugin: 'eclipse'
@@ -19,9 +20,13 @@ repositories {
 }
 
 dependencies {
-    compile (group: 'com.dotcms', name: 'dotcms', version: '4.1.0_825349f-SNAPSHOT'){
+    compile fileTree(dir: 'lib', include: '*.jar')
+    /*compile (group: 'com.dotcms', name: 'dotcms', version: '4.2.2'){
         transitive = true
-    }
+    }*/
+    // https://mvnrepository.com/artifact/org.apache.logging.log4j/log4j-core
+    compile group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.8.2'
+
     compile "javax.servlet:javax.servlet-api:3.1.0"
     testCompile 'junit:junit:4.12'
 }
@@ -47,7 +52,7 @@ jar {
         instruction 'Bundle-DocURL', 'http://dotcms.com'
         instruction 'Bundle-Activator', 'com.dotcms.osgi.oauth.Activator'
         instruction 'DynamicImport-Package', '*'
-        instruction 'Import-Package', 'org.scribe.builder.api.*;version=0,org.scribe.builder.*;version=0,!org.apache.commons.codec.binary.*,*;version=0'
+        instruction 'Import-Package', 'org.scribe.builder.api.*;version=0,org.scribe.builder.*;version=0,!org.apache.commons.lang.*;version=0,!org.apache.logging.log4j.*;version=0,!org.tuckey.*;version=0,!org.apache.commons.codec.binary.*,*;version=0'
     }
 }
 
@@ -68,5 +73,5 @@ task osgijar(type: Jar, dependsOn: ['removeVersionsOnManifest'] ) {
 } 
 
 task wrapper(type: Wrapper) {
-    gradleVersion = '1.8'
+    gradleVersion = '2.9'
 }

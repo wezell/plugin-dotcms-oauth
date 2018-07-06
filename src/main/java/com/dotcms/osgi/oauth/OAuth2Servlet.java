@@ -11,7 +11,7 @@ package com.dotcms.osgi.oauth;
 
 import com.dotcms.cms.login.LoginServiceAPI;
 import com.dotcms.osgi.oauth.util.OAuthPropertyBundle;
-import com.dotcms.repackage.org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.StringUtils;
 import com.dotmarketing.business.APILocator;
 import com.dotmarketing.business.Role;
 import com.dotmarketing.cms.factories.PublicEncryptionFactory;
@@ -21,7 +21,6 @@ import com.dotmarketing.util.Logger;
 import com.dotmarketing.util.UUIDGenerator;
 import com.dotmarketing.util.json.JSONException;
 import com.dotmarketing.util.json.JSONObject;
-import com.dotmarketing.viewtools.JSONTool;
 import com.liferay.portal.auth.PrincipalThreadLocal;
 import com.liferay.portal.model.User;
 import com.liferay.portal.util.WebKeys;
@@ -240,7 +239,7 @@ public class OAuth2Servlet extends HttpServlet {
 
 		final Response jsonResponse = quest.send();
 
-		final JSONObject json = (JSONObject) new JSONTool().generate(jsonResponse.getBody());
+		final JSONObject json = (JSONObject) new com.dotcms.rendering.velocity.viewtools.JSONTool().generate(jsonResponse.getBody());
 
 		User sys = APILocator.getUserAPI().getSystemUser();
 		User user = null;
