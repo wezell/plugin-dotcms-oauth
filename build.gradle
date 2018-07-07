@@ -1,77 +1,103 @@
-apply plugin: 'java'
-apply plugin: 'application'
-apply plugin: 'osgi'
-apply plugin: 'eclipse'
-apply plugin: 'propdeps'
-apply plugin: 'propdeps-maven'
-apply plugin: 'propdeps-eclipse'
+plugins {
+    id 'biz.aQute.bnd.builder' version '3.3.0'
+}
 
 sourceCompatibility = '1.8'
 version = '0.2'
 
-
 repositories {
-	maven {
-        url "http://repo.dotcms.com/artifactory/libs-release"
-    }
-    maven {
-        url "http://repo.dotcms.com/artifactory/libs-snapshot-local"
-    }
+    maven { url "http://repo.dotcms.com/artifactory/libs-release" }
 }
 
 dependencies {
+    //compile('com.dotcms:dotcms:4.3.2') { transitive = true }
     compile fileTree(dir: 'lib', include: '*.jar')
-    /*compile (group: 'com.dotcms', name: 'dotcms', version: '4.2.2'){
-        transitive = true
-    }*/
-    // https://mvnrepository.com/artifact/org.apache.logging.log4j/log4j-core
-    compile group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.8.2'
-
-    compile "javax.servlet:javax.servlet-api:3.1.0"
-    testCompile 'junit:junit:4.12'
 }
 
-buildscript {
-	repositories {
-		maven { url 'http://repo.spring.io/plugins-release' }
-	}
-	dependencies {
-		classpath 'org.springframework.build.gradle:propdeps-plugin:0.0.7'
-	}
-}
+import java.util.jar.*
 
+/////////////////////////
+//Plugin jar
+/////////////////////////
 jar {
     manifest {
-        name = 'OAuth Single Signon'
-        symbolicName = 'com.dotcms.osgi.oauth'
-        instruction '-includeresource', 'libs'
-        instruction 'Bundle-Vendor', 'dotcms'
-        instruction 'Export-Package', 'com.dotcms.osgi.oauth.*'
-
-        instruction 'Bundle-Description', 'OAuth Single Sign-On'
-        instruction 'Bundle-DocURL', 'http://dotcms.com'
-        instruction 'Bundle-Activator', 'com.dotcms.osgi.oauth.Activator'
-        instruction 'DynamicImport-Package', '*'
-        instruction 'Import-Package', 'org.scribe.builder.api.*;version=0,org.scribe.builder.*;version=0,!org.apache.commons.lang.*;version=0,!org.apache.logging.log4j.*;version=0,!org.tuckey.*;version=0,!org.apache.commons.codec.binary.*,*;version=0'
+        attributes (
+                'Bundle-Vendor': 'dotCMS',
+                'Bundle-Description': 'OAuth Single Sign-On',
+                'Bundle-DocURL': 'https://dotcms.com/',
+                'Bundle-Activator': 'com.dotcms.osgi.oauth.Activator',
+                'Import-Package': '*;version=0'
+        )
     }
 }
+jar.finalizedBy 'fragmentJar'
 
-task removeVersionsOnManifest (dependsOn: ['jar']) << {
-	def manifest1=new java.util.jar.Manifest(new FileInputStream('build/tmp/jar/MANIFEST.MF'))
-	def imports = manifest1.getMainAttributes().find { it.key.toString()=="Import-Package" }
-	imports.value=imports.value.toString().replaceAll(~/;version="[\(\[][0-9\.]+,[0-9\.]+[\)\]]"/,'')
-	manifest1.write(new FileOutputStream("build/tmp/jar/MANIFEST_NOVERSIONS.MF"))
+/////////////////////////
+//Fragment jar
+/////////////////////////
+
+ext {
+    bundleName = "Rest Endpoint fragment"
+    bundleDescription = "dotCMS - Rest Endpoint fragment"
+    fragmentHost = "system.bundle; extension:=framework"
+    bundleSymbolicName = "" //Auto generated based on the plugin jar
+    bundleVersion = "" //Auto generated based on the plugin jar
+    importPackage = "" //Auto generated based on the plugin jar
+    bundleManifestVersion = "" //Auto generated based on the plugin jar
+    bundleDocURL = "" //Auto generated based on the plugin jar
+    bundleVendor = "" //Auto generated based on the plugin jar
+}
+/**
+ * The import generates versions like this: version="[1.8,2)"
+ * That format does not work for the export, so we need to replace it
+ * to: version=0
+ */
+ext.fixVersionNumber = {importValue ->
+    return importValue.replaceAll("\"\\[[0-9.,]+\\)\"", "0")
 }
 
+/**
+ * Reads the Manifest file of the just created plugin jar in order to get the required info
+ * to automatically create the fragment jar.
+ */
+task readManifesttAttributes {
+    doFirst {
+        File file = configurations.baseline.singleFile
+        JarFile jar = new JarFile(file)
+        Attributes manifest = jar.getManifest().getMainAttributes()
+        bundleSymbolicName = "${manifest.getValue('Bundle-SymbolicName')}"
+        bundleVersion = "${manifest.getValue('Bundle-Version')}"
+        importPackage = "${manifest.getValue('Import-Package')}"
+        bundleManifestVersion = "${manifest.getValue('Bundle-ManifestVersion')}"
+        bundleDocURL = "${manifest.getValue('Bundle-DocURL')}"
+        bundleVendor = "${manifest.getValue('Bundle-Vendor')}"
+    }
+}
+task fragmentJar(type: Jar) {
 
-task osgijar(type: Jar, dependsOn: ['removeVersionsOnManifest'] ) { 
-    appendix = "generatedjar" 
-    from zipTree(jar.archivePath) // add original content 
-    manifest {
-    	from('build/tmp/jar/MANIFEST_NOVERSIONS.MF')
-    } 
-} 
+    doFirst {
+        //Setting the fragment jar name
+        baseName = project.name
+        archiveName = "${baseName}.fragment-${version}.jar"
+        importPackage = fixVersionNumber(importPackage)
+
+        manifest {
+            attributes (
+                    'Bundle-Name': "${bundleName}",
+                    'Bundle-Description': "${bundleDescription}",
+                    'Bundle-Vendor': "${bundleVendor}",
+                    'Bundle-Version': "${version}",
+                    'Bundle-SymbolicName': "${baseName}.fragment",
+                    'Bundle-ManifestVersion': "${bundleManifestVersion}",
+                    'Bundle-DocURL': "${bundleDocURL}",
+                    'Fragment-Host': "${fragmentHost}",
+                    'Export-Package': "${importPackage}"
+            )
+        }
+    }
+}
+fragmentJar.dependsOn 'readManifesttAttributes'
 
 task wrapper(type: Wrapper) {
-    gradleVersion = '2.9'
+    gradleVersion = '4.4.1'
 }
