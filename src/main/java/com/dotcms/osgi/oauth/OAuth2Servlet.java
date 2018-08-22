@@ -9,9 +9,25 @@
  */
 package com.dotcms.osgi.oauth;
 
-import java.io.IOException;
-import java.util.Date;
-import java.util.StringTokenizer;
+import com.dotcms.cms.login.LoginServiceAPI;
+import com.dotcms.osgi.oauth.util.OAuthPropertyBundle;
+import org.apache.commons.lang.StringUtils;
+import com.dotmarketing.business.APILocator;
+import com.dotmarketing.business.Role;
+import com.dotmarketing.cms.factories.PublicEncryptionFactory;
+import com.dotmarketing.exception.DotDataException;
+import com.dotmarketing.exception.DotSecurityException;
+import com.dotmarketing.util.Logger;
+import com.dotmarketing.util.UUIDGenerator;
+import com.dotmarketing.util.json.JSONException;
+import com.dotmarketing.util.json.JSONObject;
+import com.liferay.portal.auth.PrincipalThreadLocal;
+import com.liferay.portal.model.User;
+import com.liferay.portal.util.WebKeys;
+import org.scribe.builder.ServiceBuilder;
+import org.scribe.builder.api.Api;
+import org.scribe.model.*;
+import org.scribe.oauth.OAuthService;
 
 import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
@@ -20,152 +36,184 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.util.Date;
+import java.util.StringTokenizer;
 
+import static com.dotcms.osgi.oauth.util.OAuthPropertyBundle.getProperty;
 
-import org.scribe.builder.ServiceBuilder;
-import org.scribe.builder.api.Api;
-import org.scribe.model.OAuthRequest;
-import org.scribe.model.Response;
-import org.scribe.model.Token;
-import org.scribe.model.Verb;
-import org.scribe.model.Verifier;
-import org.scribe.oauth.OAuthService;
-
-import com.dotcms.osgi.oauth.util.OAuthPropertyBundle;
-import com.dotmarketing.business.APILocator;
-import com.dotmarketing.business.Role;
-import com.dotmarketing.cms.factories.PublicEncryptionFactory;
-import com.dotmarketing.cms.login.factories.LoginFactory;
-import com.dotmarketing.exception.DotDataException;
-import com.dotmarketing.util.Logger;
-import com.dotmarketing.util.UUIDGenerator;
-import com.dotmarketing.util.json.JSONObject;
-import com.dotmarketing.viewtools.JSONTool;
-import com.liferay.portal.auth.PrincipalThreadLocal;
-import com.liferay.portal.model.User;
-import com.liferay.portal.util.WebKeys;
-
+/**
+ * Encapsulates the login to handle the OAUTH callback on dotCMS and also the third-party authorization (Facebook or Google).
+ * @author Will, Jsanca
+ */
 public class OAuth2Servlet extends HttpServlet {
 
 	private static final long serialVersionUID = -7036009330382977246L;
-	
-	public void destroy() {
+	public static final String USE_OAUTH_FOR = "USE_OAUTH_FOR";
+	public static final String OAUTH_FRONTEND = "frontend";
+	public static final String OAUTH_BACKEND = "backend";
+	public static final String DEFAULT_OAUTH_PROVIDER = "DEFAULT_OAUTH_PROVIDER";
+	public static final String OAUTH_PROVIDER_KEY = "oauthProvider";
+	public static final String OAUTH_REDIRECT = "OAUTH_REDIRECT";
+	public static final String UTF_8 = "UTF-8";
+	public static final String FEMALE = "female";
+	public static final String GENDER = "gender";
+	public static final String JAVAX_SERVLET_FORWARD_REQUEST_URI = "javax.servlet.forward.request_uri";
+	public static final String REFERRER = "referrer";
+	public static final String LOCATION = "Location";
+	public static final String CODE_PARAM_KEY = "code";
+	private static String CALLBACK_URL;
+	private static String ROLES_TO_ADD;
+	private final LoginServiceAPI loginServiceAPI;
+	private final boolean isFrontEnd;
+	private final boolean isBackEnd;
+	private final boolean rememberMe;
 
-	}
 
 	public OAuth2Servlet() {
-		
+
+		final String  useFor = getProperty(USE_OAUTH_FOR, StringUtils.EMPTY).toLowerCase();
+		this.rememberMe     = "true".equalsIgnoreCase(getProperty("rememberMe", "true"));
+		this.isFrontEnd		 = useFor.contains (OAUTH_FRONTEND);
+		this.isBackEnd  	 = useFor.contains (OAUTH_BACKEND);
+		this.loginServiceAPI = APILocator.getLoginServiceAPI();
 	}
 
-	private static String CALLBACK_URL, ROLES_TO_ADD;
-	String useFor = OAuthPropertyBundle.getProperty("USE_OAUTH_FOR","").toLowerCase();
-	boolean frontEnd = useFor.contains ("frontend");
-	boolean backEnd = useFor.contains ("backend");
-	
+	private void doLog (final String msg) {
+		System.out.println(msg);
+	}
+
+
 	@Override
-	public void service(ServletRequest req, ServletResponse res) throws IOException, ServletException {
+	public void service(final ServletRequest req,
+						final ServletResponse res) throws IOException, ServletException {
 
-		HttpServletResponse response = (HttpServletResponse) res;
-		HttpServletRequest request = (HttpServletRequest) req;
-		HttpSession session = request.getSession(false);
-		String path = request.getRequestURI();
-		User user = null;
+		final HttpServletResponse response               = (HttpServletResponse) res;
+		final HttpServletRequest request                = (HttpServletRequest) req;
+		final HttpSession session  = request.getSession(false);
+		final User user            	   = this.getUser(request, session); // get our user
+		final String callbackHost    	   = this.getCallbackHost(request);
+		final String oauthProvider    	   = this.getOauthProvider(request, session);
+		final Api provider 			   = this.getProvider(oauthProvider);
+		final String proName    	    	   = provider.getClass().getSimpleName();
+		final String apiKey				   = getProperty(proName + "_API_KEY");
+		final String apiSecret 		       = getProperty(proName + "_API_SECRET");
+		final String protectedResourceUrl   = getProperty(proName + "_PROTECTED_RESOURCE_URL");
+		final String scope				   = getProperty(proName + "_SCOPE");
+		final String firstNameProp		   = getProperty(proName + "_FIRST_NAME_PROP");
+		final String lastNameProp  		   = getProperty(proName + "_LAST_NAME_PROP");
 
-		String CALLBACK_HOST, API_KEY, API_SECRET, OAUTH_PROVIDER, PROTECTED_RESOURCE_URL, SCOPE, FIRST_NAME_PROP, LAST_NAME_PROP;
-		
-		CALLBACK_HOST = request.getScheme() + "://" + ((request.getServerPort() == 80 || request.getServerPort() == 443) ? 
-						request.getServerName() : request.getServerName()+":"+request.getServerPort());
+		// if the user is already logged in
+		if (user == null) {
+			doLog("OAuth2Servlet: User is null");
+			// set up Oauth service
+			OAuthService service = new ServiceBuilder()
+					.provider(provider.getClass())
+					.apiKey(apiKey)
+					.apiSecret(apiSecret)
+					.scope(scope)
+					.callback(callbackHost + CALLBACK_URL)
+					.build();
 
-		OAUTH_PROVIDER = OAuthPropertyBundle.getProperty("DEFAULT_OAUTH_PROVIDER");
-		if (session.getAttribute("OAUTH_PROVIDER") != null) {
-			OAUTH_PROVIDER = (String) session.getAttribute("OAUTH_PROVIDER");
+			if (null != request.getParameter(CODE_PARAM_KEY)) {
+
+				doLog("OAuth2Servlet: code param found, doing callback");
+				try {
+
+					this.doCallback(request, response, service,
+							protectedResourceUrl, firstNameProp, lastNameProp);
+
+					// redirect onward!
+					final HttpSession httpSession = request.getSession(true);
+					final String authorizationUrl = (String)httpSession.getAttribute(OAUTH_REDIRECT);
+
+					if (authorizationUrl == null) {
+						this.alreadyLoggedIn(response);
+					} else {
+						httpSession.removeAttribute(OAUTH_REDIRECT);
+						response.sendRedirect(authorizationUrl);
+					}
+				} catch (Exception e) {
+
+					Logger.debug(this, e.getMessage(), e);
+					throw new ServletException(e);
+				}
+
+			} else {
+				// Send for authorization
+				doLog("OAuth2Servlet: sending for authorization");
+				this.sendForAuthorization(request, response, service);
+			}
+		} else {
+
+			this.alreadyLoggedIn(response);
 		}
-		if (request.getParameter("OAUTH_PROVIDER") != null) {
-			OAUTH_PROVIDER = request.getParameter("OAUTH_PROVIDER");
-		}
-		session.setAttribute("OAUTH_PROVIDER", OAUTH_PROVIDER);
+	} // service.
 
-		String proName;
-		Api provider;
+	private void alreadyLoggedIn(HttpServletResponse response) throws IOException {
+
+		doLog("OAuth2Servlet: already login, redirecting to /dotAdmin");
+		Logger.error(this.getClass(), "Already logged in, redirecting home");
+
+		response.sendRedirect((this.isBackEnd)?"/dotAdmin":"/?already-logged-in");
+	}
+
+	private Api getProvider (final String oauthProvider) throws ServletException {
+
+		Api provider = null;
+
 		try {
-			provider = (Api) Class.forName(OAUTH_PROVIDER).newInstance();
-			proName = provider.getClass().getSimpleName();
 
-			API_KEY = OAuthPropertyBundle.getProperty(proName + "_" + "API_KEY");
-			API_SECRET = OAuthPropertyBundle.getProperty(proName + "_" + "API_SECRET");
-			PROTECTED_RESOURCE_URL = OAuthPropertyBundle.getProperty(proName + "_" + "PROTECTED_RESOURCE_URL");
-			SCOPE = OAuthPropertyBundle.getProperty(proName + "_" + "SCOPE");
-			FIRST_NAME_PROP = OAuthPropertyBundle.getProperty(proName + "_" + "FIRST_NAME_PROP");
-			LAST_NAME_PROP = OAuthPropertyBundle.getProperty(proName + "_" + "LAST_NAME_PROP");
+			provider = (Api) Class.forName(oauthProvider).newInstance();
 		} catch (Exception e1) {
+			Logger.error(this, e1.getMessage(), e1);
 			throw new ServletException(e1);
 		}
 
-		// get our user
+		return provider;
+	} // getProvider.
+
+	private User getUser(final HttpServletRequest request, final HttpSession session) {
+
+		User user = null;
+
 		try {
-			user = (com.liferay.portal.model.User) session.getAttribute(com.dotmarketing.util.WebKeys.CMS_USER);
-			if (user == null) {
-				try {
-					user = com.liferay.portal.util.PortalUtil.getUser(request);
-				} catch (Exception nsue) {
-					Logger.warn(this, "Exception trying to getUser: " + nsue.getMessage(), nsue);
+			if (null != session) {
+
+				if (this.isFrontEnd) {
+					user = (User) session.getAttribute(com.dotmarketing.util.WebKeys.CMS_USER);
+					doLog("OAuth2Servlet: CMS USER IS: " + user);
+				}
+
+				if (this.isBackEnd && null == user) {
+
+					try {
+						user = com.liferay.portal.util.PortalUtil.getUser(request);
+						doLog("OAuth2Servlet: DOT8 USER IS: " + user);
+					} catch (Exception nsue) {
+						Logger.warn(this, "Exception trying to getUser: " + nsue.getMessage(), nsue);
+					}
 				}
 			}
 		} catch (Exception nsue) {
 			Logger.warn(this, "Exception trying to getUser: " + nsue.getMessage(), nsue);
 		}
 
-		// if the user is already logged in
-		if (user != null) {
-			Logger.error(this.getClass(), "Already logged in, redirecting home");
-			response.reset();
-			response.setStatus(HttpServletResponse.SC_MOVED_PERMANENTLY);
-			response.setHeader("Location", "/?already-logged-in");
-			return;
-		}
+		return user;
+	} // getUser.
 
-		// set up Oauth service
-		OAuthService service = new ServiceBuilder()
-				.provider(provider.getClass())
-				.apiKey(API_KEY)
-				.apiSecret(API_SECRET)
-				.scope(SCOPE)
-				.callback(CALLBACK_HOST + CALLBACK_URL)
-				.build();
-		if (path.contains(CALLBACK_URL)) {
-			try {
+	private String getCallbackHost(final HttpServletRequest request) {
 
-				doCallback(request, response, service, PROTECTED_RESOURCE_URL, FIRST_NAME_PROP, LAST_NAME_PROP);
-				
-				// redirect onward!
-				String authorizationUrl = (String) session.getAttribute("OAUTH_REDIRECT");
-				if (authorizationUrl == null)
-					authorizationUrl = "/?logged-in";
-				request.getSession().removeAttribute("OAUTH_REDIRECT");
-				response.reset();
-				response.setStatus(HttpServletResponse.SC_MOVED_PERMANENTLY);
-				response.setHeader("Location", authorizationUrl);
-			} catch (Exception e) {
-				e.printStackTrace();
-				throw new ServletException(e);
-
-			}
-
-		} else {
-			// Send for authorization
-			sendForAuthorization(request, response, service);
-
-
-		}
-
-	}
+		return request.getScheme() + "://" + ((request.getServerPort() == 80 || request.getServerPort() == 443) ?
+						request.getServerName() : request.getServerName()+":"+request.getServerPort());
+	} // getCallbackHost.
 
 	@Override
 	public void init() throws ServletException {
 
 		ROLES_TO_ADD = OAuthPropertyBundle.getProperty("ROLES_TO_ADD");
 		CALLBACK_URL = OAuthPropertyBundle.getProperty("CALLBACK_URL");
-
 	}
 
 	/**
@@ -174,100 +222,150 @@ public class OAuth2Servlet extends HttpServlet {
 	 * 
 	 * @param request
 	 * @param service
-	 * @return
+	 * @return User
 	 * @throws DotDataException
 	 */
-	private User doCallback(HttpServletRequest request, HttpServletResponse response, OAuthService service, String callBackUrl,
-			String firstNameProp, String lastNameProp) throws DotDataException {
+	private User doCallback(final HttpServletRequest request, final HttpServletResponse response,
+							final OAuthService service, final String callBackUrl, final String firstNameProp,
+							final String lastNameProp) throws DotDataException {
 
-		Verifier verifier = new Verifier(request.getParameter("code"));
+		final Verifier verifier = new Verifier(request.getParameter("code"));
+		final Token accessToken = service.getAccessToken(null, verifier);
 
-		Token accessToken = service.getAccessToken(null, verifier);
-		Logger.debug(this.getClass(), "Got the Access Token!");
+		doLog("OAuth2Servlet: Got the Access Token!");
 
-		OAuthRequest quest = new OAuthRequest(Verb.GET, callBackUrl);
+		final OAuthRequest quest = new OAuthRequest(Verb.GET, callBackUrl);
 		service.signRequest(accessToken, quest);
-		Response sponse = quest.send();
 
-		JSONObject json = new JSONTool().generate(sponse.getBody());
+		final Response jsonResponse = quest.send();
+
+		final JSONObject json = (JSONObject) new com.dotcms.rendering.velocity.viewtools.JSONTool().generate(jsonResponse.getBody());
 
 		User sys = APILocator.getUserAPI().getSystemUser();
-		User u = null;
-		try {
-			u = APILocator.getUserAPI().loadByUserByEmail(json.getString("email"), sys, false);
+		User user = null;
 
+		try {
+
+			doLog("OAuth2Servlet: Loading an user!");
+			user = APILocator.getUserAPI().loadByUserByEmail(json.getString("email"), sys, false);
+			doLog("OAuth2Servlet: User loaded!");
 		} catch (Exception e) {
 			Logger.warn(this, "No matching user, creating");
 		}
-		if (u == null) {
+
+		if (user == null) {
 			try {
-
-				String userId = UUIDGenerator.generateUuid();
-				String email = new String(json.getString("email").getBytes(), "UTF-8");
-				String lastName = new String(json.getString(lastNameProp).getBytes(), "UTF-8");
-				String firstName = new String(json.getString(firstNameProp).getBytes(), "UTF-8");
-
-				u = APILocator.getUserAPI().createUser(userId, email);
-
-				u.setFirstName(firstName);
-				u.setLastName(lastName);
-				u.setActive(true);
-
-				u.setCreateDate(new Date());
-				u.setFemale("female".equals(json.getString("gender")));
-				u.setPassword(PublicEncryptionFactory.digestString(UUIDGenerator.generateUuid() + "/" + UUIDGenerator.generateUuid()));
-				u.setPasswordEncrypted(true);
-
-				APILocator.getUserAPI().save(u, sys, false);
-
+				doLog("OAuth2Servlet: User not found, creating one!");
+				user = this.createUser(firstNameProp, lastNameProp, json, sys);
 			} catch (Exception e) {
 				Logger.warn(this, "Error creating user:" + e.getMessage(), e);
 				throw new DotDataException(e.getMessage());
 			}
 		}
 
-		if (!u.isActive()) {
-			return u;
+		if (user.isActive()) {
+
+			doLog("OAuth2Servlet: User is active, adding roles!");
+			final StringTokenizer st = new StringTokenizer(ROLES_TO_ADD, ",;");
+			while (st.hasMoreElements()) {
+
+				this.addRole(user, st);
+			}
+
+			doLog("OAuth2Servlet: Doing login!");
+			this.loginServiceAPI.doCookieLogin(PublicEncryptionFactory.encryptString
+					(user.getUserId()), request, response, this.rememberMe);
+
+			if (isBackEnd) {
+				doLog("OAuth2Servlet: Finish BE login!");
+				PrincipalThreadLocal.setName(user.getUserId());
+				final HttpSession httpSession = request.getSession(true);
+				httpSession.setAttribute(WebKeys.USER_ID, user.getUserId());
+			}
 		}
 
-		StringTokenizer st = new StringTokenizer(ROLES_TO_ADD, ",;");
-		while (st.hasMoreElements()) {
-			String roleKey = st.nextToken().trim();
-			Role r = APILocator.getRoleAPI().loadRoleByKey(roleKey);
-			if(r==null){
-				continue;
-				
-			}
-			if (!APILocator.getRoleAPI().doesUserHaveRole(u, r)) {
-				APILocator.getRoleAPI().addRoleToUser(r, u);
-			}
+		return user;
+	} //doCallback.
+
+	private void addRole(final User user, final StringTokenizer st) throws DotDataException {
+
+		final String roleKey = st.nextToken().trim();
+		final Role role = APILocator.getRoleAPI().loadRoleByKey(roleKey);
+		if (role != null && !APILocator.getRoleAPI().doesUserHaveRole(user, role)) {
+
+            APILocator.getRoleAPI().addRoleToUser(role, user);
+        }
+	} // addRole.
+
+	private User createUser(final String firstNameProp,
+							final String lastNameProp,
+							final JSONObject json,
+							final User sys) throws UnsupportedEncodingException, JSONException, DotDataException, DotSecurityException {
+
+		final String userId    = UUIDGenerator.generateUuid();
+		final String email     = new String(json.getString("email").getBytes(),   UTF_8);
+		final String lastName  = new String(json.getString(lastNameProp).getBytes(),   UTF_8);
+		final String firstName = new String(json.getString(firstNameProp).getBytes(),  UTF_8);
+
+		final User user = APILocator.getUserAPI().createUser(userId, email);
+
+		user.setFirstName(firstName);
+		user.setLastName(lastName);
+		user.setActive(true);
+
+		user.setCreateDate(new Date());
+		if (!json.isNull(GENDER)) {
+			user.setFemale(FEMALE.equals(json.getString(GENDER)));
 		}
-		LoginFactory.doCookieLogin(PublicEncryptionFactory.encryptString(u.getUserId()), request, response);
-		if(backEnd){
-			PrincipalThreadLocal.setName(u.getUserId());
-			request.getSession().setAttribute(WebKeys.USER_ID, u.getUserId());
+		user.setPassword(PublicEncryptionFactory.digestString(UUIDGenerator.generateUuid() + "/" + UUIDGenerator.generateUuid()));
+		user.setPasswordEncrypted(true);
+
+		APILocator.getUserAPI().save(user, sys, false);
+		return user;
+	} // createUser.
+
+	private void sendForAuthorization(final HttpServletRequest request,
+									  final HttpServletResponse response,
+									  final OAuthService service) throws IOException {
+
+		String retUrl = (String) request.getAttribute(JAVAX_SERVLET_FORWARD_REQUEST_URI);
+
+		if (request.getSession().getAttribute(OAUTH_REDIRECT) != null) {
+			retUrl = (String) request.getSession().getAttribute(OAUTH_REDIRECT);
 		}
 
-		return u;
+		if (request.getParameter(REFERRER) != null) {
+			retUrl = request.getParameter(REFERRER);
+		}
+
+		request.getSession().setAttribute(OAUTH_REDIRECT, retUrl);
+
+		final String authorizationUrl = service.getAuthorizationUrl(null);
+		doLog("OAuth2Servlet: Redirecting for authentication to: " + authorizationUrl);
+		response.sendRedirect(authorizationUrl);
+	}
+
+	private String getOauthProvider (final HttpServletRequest request, final HttpSession session) {
+
+		String oauthProvider = getProperty(DEFAULT_OAUTH_PROVIDER);
+
+		if (null != session && session.getAttribute(OAUTH_PROVIDER_KEY) != null) {
+			oauthProvider = (String) session.getAttribute(OAUTH_PROVIDER_KEY);
+		}
+
+		if (request.getParameter(OAUTH_PROVIDER_KEY) != null) {
+			oauthProvider = request.getParameter(OAUTH_PROVIDER_KEY);
+		}
+
+		if (null != session) {
+			session.setAttribute(OAUTH_PROVIDER_KEY, oauthProvider);
+		}
+
+		return oauthProvider;
+	} // getOauthProvider.
+
+	public void destroy() {
 
 	}
 
-	private void sendForAuthorization(HttpServletRequest request, HttpServletResponse response, OAuthService service) {
-		String retUrl = (String) request.getAttribute("javax.servlet.forward.request_uri");
-
-		if (request.getSession().getAttribute("OAUTH_REDIRECT") != null) {
-			retUrl = (String) request.getSession().getAttribute("OAUTH_REDIRECT");
-		}
-		if (request.getParameter("referrer") != null) {
-			retUrl = request.getParameter("referrer");
-		}
-		request.getSession().setAttribute("OAUTH_REDIRECT", retUrl);
-
-		String authorizationUrl = service.getAuthorizationUrl(null);
-		response.reset();
-		response.setStatus(HttpServletResponse.SC_MOVED_PERMANENTLY);
-		response.setHeader("Location", authorizationUrl);
-		return;
-	}
-
-}
+} // E:O:F:OAuth2Servlet.

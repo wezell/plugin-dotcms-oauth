@@ -20,21 +20,16 @@ public class OAuthTool implements ViewTool {
 		
 		String google = OAuthPropertyBundle.getProperty("Google2Api_API_KEY", NOTSET);
 		String facebook = OAuthPropertyBundle.getProperty("FacebookApi_API_KEY", NOTSET);
+
 		if(!NOTSET.equals(google)){
 			providers.add(google);
-			
 		}
+
 		if(!NOTSET.equals(facebook)){
 			providers.add(facebook);
-			
 		}
+
 		return providers;
-		
-		
-		
-		
 	}
-
-
 
 }

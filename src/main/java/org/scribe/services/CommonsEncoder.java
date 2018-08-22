@@ -1,6 +1,6 @@
 package org.scribe.services;
 
-import com.dotcms.repackage.org.apache.commons.codec.binary.*;
+import org.apache.commons.codec.binary.*;
 import org.scribe.exceptions.*;
 
 import java.io.UnsupportedEncodingException;
