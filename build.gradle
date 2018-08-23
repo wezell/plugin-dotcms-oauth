@@ -10,9 +10,13 @@ repositories {
 }
 
 dependencies {
-    //compile('com.dotcms:dotcms:4.3.2') { transitive = true }
+    compile ("javax.servlet:javax.servlet-api:3.1.0") 
+    compile ('org.apache.tomcat:tomcat-catalina:8.5.32') 
+    compile('com.dotcms:dotcms:5.0.0') { transitive = true }
+    compile group: 'org.scribe', name: 'scribe', version: '1.3.7'
     compile fileTree(dir: 'lib', include: '*.jar')
 }
+
 
 import java.util.jar.*
 
@@ -23,9 +27,9 @@ jar {
     manifest {
         attributes (
                 'Bundle-Vendor': 'dotCMS',
-                'Bundle-Description': 'OAuth Single Sign-On',
+                'Bundle-Description': 'dotCMS - OAuth / OIDC ',
                 'Bundle-DocURL': 'https://dotcms.com/',
-                'Bundle-Activator': 'com.dotcms.osgi.oauth.Activator',
+                'Bundle-Activator': 'com.dotmarketing.osgi.oauth.Activator',
                 'Import-Package': '*;version=0'
         )
     }
@@ -37,8 +41,8 @@ jar.finalizedBy 'fragmentJar'
 /////////////////////////
 
 ext {
-    bundleName = "Rest Endpoint fragment"
-    bundleDescription = "dotCMS - Rest Endpoint fragment"
+    bundleName = "OAuth  fragment"
+    bundleDescription = "dotCMS - OAuth  fragment"
     fragmentHost = "system.bundle; extension:=framework"
     bundleSymbolicName = "" //Auto generated based on the plugin jar
     bundleVersion = "" //Auto generated based on the plugin jar
@@ -99,5 +103,5 @@ task fragmentJar(type: Jar) {
 fragmentJar.dependsOn 'readManifesttAttributes'
 
 task wrapper(type: Wrapper) {
-    gradleVersion = '4.4.1'
+    gradleVersion = '4.2'
 }
