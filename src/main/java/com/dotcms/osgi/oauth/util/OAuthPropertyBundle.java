@@ -1,7 +1,7 @@
 /******************************************************************************* 
  *  Copyright 2008-2010 Amazon Technologies, Inc.
  *  Licensed under the Apache License, Version 2.0 (the "License"); 
- *  
+ *
  *  You may not use this file except in compliance with the License. 
  *  You may obtain a copy of the License at: http://aws.amazon.com/apache2.0
  *  This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR 
@@ -21,34 +21,39 @@ import java.util.Properties;
  * This class reads configuration values from config.properties file.
  */
 public class OAuthPropertyBundle {
-	private static final String PROPERTY_FILE_NAME = "oauth2.properties";
-	private static Properties properties;
-	static {
-		properties = new Properties();
-		try {
-			InputStream in = OAuthPropertyBundle.class.getResourceAsStream("/" + PROPERTY_FILE_NAME);
-			if (in == null) {
-				in = OAuthPropertyBundle.class.getResourceAsStream("/com/dotcms/osgi/util/" + PROPERTY_FILE_NAME);
-				if (in == null) {
-					throw new FileNotFoundException(PROPERTY_FILE_NAME + " not found");
-				}
-			}
-			properties.load(in);
-		} catch (FileNotFoundException e) {
-			System.out.println("FileNotFoundException : " + PROPERTY_FILE_NAME + " not found");
-			e.printStackTrace();
-		} catch (IOException e) {
-			System.out.println("IOException : Can't read " + PROPERTY_FILE_NAME);
-			e.printStackTrace();
-		}
-	}
 
-	public static String getProperty(String key) {
-		return properties.getProperty(key);
-	}
+    private static final String PROPERTY_FILE_NAME = "oauth2.properties";
+    private static Properties properties;
 
-	public static String getProperty(String key, String defaultValue) {
-		String x = properties.getProperty(key);
-		return (x == null) ? defaultValue : x;
-	}
+    static {
+        properties = new Properties();
+        try {
+            InputStream in = OAuthPropertyBundle.class
+                    .getResourceAsStream("/" + PROPERTY_FILE_NAME);
+            if (in == null) {
+                in = OAuthPropertyBundle.class
+                        .getResourceAsStream("/com/dotcms/osgi/util/" + PROPERTY_FILE_NAME);
+                if (in == null) {
+                    throw new FileNotFoundException(PROPERTY_FILE_NAME + " not found");
+                }
+            }
+            properties.load(in);
+        } catch (FileNotFoundException e) {
+            System.out.println("FileNotFoundException : " + PROPERTY_FILE_NAME + " not found");
+            e.printStackTrace();
+        } catch (IOException e) {
+            System.out.println("IOException : Can't read " + PROPERTY_FILE_NAME);
+            e.printStackTrace();
+        }
+    }
+
+    public static String getProperty(String key) {
+        return properties.getProperty(key);
+    }
+
+    public static String getProperty(String key, String defaultValue) {
+        String x = properties.getProperty(key);
+        return (x == null) ? defaultValue : x;
+    }
+
 }
