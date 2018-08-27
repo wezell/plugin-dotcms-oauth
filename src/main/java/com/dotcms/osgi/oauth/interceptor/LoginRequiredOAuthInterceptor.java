@@ -94,6 +94,7 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
                     final String apiSecret = getProperty(providerName + "_API_SECRET");
                     final String scope = getProperty(providerName + "_SCOPE");
 
+                    // todo: this should be a factory based on the provider type
                     final OAuthService service = new ServiceBuilder()
                             .apiKey(apiKey)
                             .apiSecret(apiSecret)
@@ -115,7 +116,6 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
     } // intercept.
 
     private DefaultApi20 getAPIProvider(HttpServletRequest request, HttpSession session) {
-
         //Look for the provider to use
         String oauthProvider = getOauthProvider(request, session);
 
@@ -135,7 +135,7 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
         return apiProvider;
     }
 
-    private String getOauthProvider(final HttpServletRequest request, final HttpSession session) {
+    private synchronized String getOauthProvider(final HttpServletRequest request, final HttpSession session) {
 
         String oauthProvider = getProperty(OAUTH_PROVIDER_DEFAULT,
                 "org.scribe.builder.api.Google2Api");
