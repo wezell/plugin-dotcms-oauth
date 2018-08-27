@@ -21,6 +21,8 @@ import static com.dotcms.osgi.oauth.OauthUtils.forFrontEnd;
 import static com.dotcms.osgi.oauth.util.OAuthPropertyBundle.getProperty;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+import com.dotcms.enterprise.PasswordFactoryProxy;
+import com.dotcms.enterprise.de.qaware.heimdall.PasswordException;
 import com.dotcms.filters.interceptor.Result;
 import com.dotcms.filters.interceptor.WebInterceptor;
 import com.dotcms.osgi.oauth.provider.OktaApi20;
@@ -118,7 +120,10 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
                             this.alreadyLoggedIn(response);
                         } else {
                             session.removeAttribute(OAUTH_REDIRECT);
+                            session.removeAttribute(OAUTH_SERVICE);
+                            session.removeAttribute(OAUTH_API_PROVIDER);
                             response.sendRedirect(authorizationUrl);
+                            result = Result.SKIP_NO_CHAIN; // needs to stop the filter chain.
                         }
                     } catch (Exception e) {
                         Logger.error(this, e.getMessage(), e);
@@ -165,7 +170,7 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
         }
 
         //Parse the response in order to get the user data
-        final JSONObject json = (JSONObject) new JSONTool()
+        final JSONObject jsonResponse = (JSONObject) new JSONTool()
                 .generate(protectedCallResponse.getBody());
 
         User user = null;
@@ -174,7 +179,7 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
             //Verify if the user already exist
             Logger.info(this.getClass(), "Loading an user!");
             user = APILocator.getUserAPI()
-                    .loadByUserByEmail(json.getString("email"), this.systemUser, false);
+                    .loadByUserByEmail(jsonResponse.getString("email"), this.systemUser, false);
             Logger.info(this.getClass(), "User loaded!");
         } catch (Exception e) {
             Logger.warn(this, "No matching user, creating");
@@ -184,7 +189,7 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
         if (user == null) {
             try {
                 Logger.info(this.getClass(), "User not found, creating one!");
-                user = this.createUser(firstNameProp, lastNameProp, json, this.systemUser);
+                user = this.createUser(firstNameProp, lastNameProp, jsonResponse, this.systemUser);
             } catch (Exception e) {
                 Logger.warn(this, "Error creating user:" + e.getMessage(), e);
                 throw new DotDataException(e.getMessage());
@@ -197,7 +202,8 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
             final String rolesToAdd = getProperty(ROLES_TO_ADD);
             final StringTokenizer st = new StringTokenizer(rolesToAdd, ",;");
             while (st.hasMoreElements()) {
-                this.addRole(user, st);
+                final String roleKey = st.nextToken().trim();
+                this.addRole(user, roleKey);
             }
 
             Logger.info(this.getClass(), "Doing login!");
@@ -216,9 +222,8 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
         return user;
     } //authenticate.
 
-    private void addRole(final User user, final StringTokenizer st) throws DotDataException {
+    private void addRole(final User user, final String roleKey) throws DotDataException {
 
-        final String roleKey = st.nextToken().trim();
         final Role role = APILocator.getRoleAPI().loadRoleByKey(roleKey);
         if (role != null && !APILocator.getRoleAPI().doesUserHaveRole(user, role)) {
 
@@ -229,7 +234,8 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
     private User createUser(final String firstNameProp,
             final String lastNameProp,
             final JSONObject json,
-            final User sys) throws JSONException, DotDataException, DotSecurityException {
+            final User sys)
+            throws JSONException, DotDataException, DotSecurityException, PasswordException {
 
         final String userId = UUIDGenerator.generateUuid();
         final String email = new String(json.getString("email").getBytes(), UTF_8);
@@ -246,9 +252,12 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
         if (!json.isNull(GENDER)) {
             user.setFemale(FEMALE.equals(json.getString(GENDER)));
         }
-        user.setPassword(PublicEncryptionFactory
-                .digestString(UUIDGenerator.generateUuid() + "/" + UUIDGenerator
-                        .generateUuid()));
+        user.setPassword(
+                PasswordFactoryProxy.generateHash(
+                        UUIDGenerator.generateUuid()
+                                + "/"
+                                + UUIDGenerator.generateUuid()
+                ));
         user.setPasswordEncrypted(true);
         APILocator.getUserAPI().save(user, sys, false);
 
