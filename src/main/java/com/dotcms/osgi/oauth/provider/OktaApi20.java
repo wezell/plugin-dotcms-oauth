@@ -24,11 +24,7 @@ public class OktaApi20 extends DefaultApi20 {
      */
     @Override
     public String getAccessTokenEndpoint() {
-        return getBaseAccessTokenEndpoint() + String.format(""
-                        + "?grant_type=authorization_code"
-                        + "&redirect_uri=%s",
-                this.config.getCallback()
-        );
+        return getBaseAccessTokenEndpoint() + "?grant_type=authorization_code";
     }
 
     private String getBaseAccessTokenEndpoint() {
