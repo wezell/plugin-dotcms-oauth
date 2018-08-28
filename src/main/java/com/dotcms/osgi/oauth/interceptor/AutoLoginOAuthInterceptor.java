@@ -25,7 +25,7 @@ import com.dotcms.enterprise.PasswordFactoryProxy;
 import com.dotcms.enterprise.de.qaware.heimdall.PasswordException;
 import com.dotcms.filters.interceptor.Result;
 import com.dotcms.filters.interceptor.WebInterceptor;
-import com.dotcms.osgi.oauth.provider.DotProvider;
+import com.dotcms.osgi.oauth.service.DotService;
 import com.dotcms.rendering.velocity.viewtools.JSONTool;
 import com.dotmarketing.business.APILocator;
 import com.dotmarketing.business.Role;
@@ -110,7 +110,7 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
                         final String lastNameProp = getProperty(providerName + "_LAST_NAME_PROP");
 
                         //With the authentication code lets try to authenticate to dotCMS
-                        this.authenticate(request, response, apiProvider, oAuthService,
+                        this.authenticate(request, response, oAuthService,
                                 protectedResourceUrl, firstNameProp, lastNameProp);
 
                         // redirect onward!
@@ -144,7 +144,6 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
      * @return User
      */
     private void authenticate(final HttpServletRequest request, final HttpServletResponse response,
-            final DefaultApi20 apiProvider,
             final OAuthService service, final String protectedResourceUrl,
             final String firstNameProp, final String lastNameProp)
             throws DotDataException {
@@ -197,7 +196,7 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
         if (user.isActive()) {
 
             //Set the roles to the user
-            setRoles(apiProvider, userJsonResponse, user);
+            setRoles(service, userJsonResponse, user);
 
             //Authenticate to dotCMS
             Logger.info(this.getClass(), "Doing login!");
@@ -221,7 +220,7 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
         }
     } //authenticate.
 
-    private void setRoles(final DefaultApi20 apiProvider,
+    private void setRoles(final OAuthService service,
             final JSONObject userJsonResponse,
             final User user)
             throws DotDataException {
@@ -242,8 +241,8 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
 
         //Now from the remote server
         Collection<String> remoteRoles;
-        if (apiProvider instanceof DotProvider) {
-            remoteRoles = ((DotProvider) apiProvider).getGroups(user);
+        if (service instanceof DotService) {
+            remoteRoles = ((DotService) service).getGroups(user);
 
             if (null != remoteRoles && !remoteRoles.isEmpty()) {
                 for (final String roleKey : remoteRoles) {

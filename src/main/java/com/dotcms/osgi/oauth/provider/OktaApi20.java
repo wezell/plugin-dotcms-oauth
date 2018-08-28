@@ -2,6 +2,7 @@ package com.dotcms.osgi.oauth.provider;
 
 import static com.dotcms.osgi.oauth.util.OAuthPropertyBundle.getProperty;
 
+import com.dotcms.osgi.oauth.service.DotService;
 import com.dotcms.rendering.velocity.viewtools.JSONTool;
 import com.dotmarketing.util.json.JSONArray;
 import com.dotmarketing.util.json.JSONException;
@@ -29,7 +30,6 @@ import org.scribe.utils.Preconditions;
 public class OktaApi20 extends DefaultApi20 implements DotProvider {
 
     private final String state;
-    private OAuthConfig config;
 
     public OktaApi20() {
         this.state = "state_" + new Random().nextInt(999_999);
@@ -60,8 +60,6 @@ public class OktaApi20 extends DefaultApi20 implements DotProvider {
      */
     @Override
     public String getAuthorizationUrl(OAuthConfig config) {
-
-        this.config = config;
 
         /*
         NOTE: The callback domain must be added as a trusted origin -> admin/access/api/trusted_origins
@@ -148,76 +146,12 @@ public class OktaApi20 extends DefaultApi20 implements DotProvider {
         };
     }
 
-    /**
-     * Custom implementation (extra call) in order to get roles/groups from the Okta server as the
-     * request that returns the user data does not have the user groups.
-     */
-    @Override
-    public Collection<String> getGroups(User user) {
-
-        final String providerName = getSimpleName();
-        final String groupPrefix = getProperty(providerName + "_GROUP_PREFIX");
-        final String organizationURL = getProperty(providerName + "_ORGANIZATION_URL");
-        final String apiToken = getProperty(providerName + "_API_TOKEN");
-        final String groupsResourceUrl = String
-                .format(getProperty(providerName + "_GROUPS_RESOURCE_URL"), user.getEmailAddress());
-
-        final OAuthRequest oauthGroupsRequest = new OAuthRequest(Verb.GET,
-                organizationURL + groupsResourceUrl);
-        oauthGroupsRequest.addHeader("Authorization", "SSWS " + apiToken);
-        oauthGroupsRequest.addHeader("Content-Type", "application/json");
-        oauthGroupsRequest.addHeader("Accept", "application/json");
-
-        final Response groupsCallResponse = oauthGroupsRequest.send();
-        if (!groupsCallResponse.isSuccessful()) {
-            throw new OAuthException(
-                    String.format("Unable to connect to end point [%s] [%s]",
-                            groupsResourceUrl,
-                            groupsCallResponse.getMessage()));
-        }
-
-        Collection<String> groups = new ArrayList<>();
-        try {
-            //Parse the response in order to get the user data
-            final JSONArray groupsJsonResponse = (JSONArray) new JSONTool()
-                    .generate(groupsCallResponse.getBody());
-
-            for (int i = 0; i < groupsJsonResponse.length(); i++) {
-                JSONObject groupJSONData = groupsJsonResponse.getJSONObject(i);
-
-                final JSONObject profile = groupJSONData.getJSONObject("profile");
-                if (null != profile) {
-
-                    final String group = profile.getString("name");
-                    if (null != group) {
-
-                        //Verify if we need to filter by prefix
-                        if (null != groupPrefix && !groupPrefix.isEmpty()) {
-                            if (group.startsWith(groupPrefix)) {
-                                groups.add(group);
-                            }
-                        } else {
-                            groups.add(group);
-                        }
-                    }
-                }
-            }
-        } catch (JSONException e) {
-            throw new OAuthException(
-                    String.format("Unable to get groups in remote authentication server [%s] [%s]",
-                            groupsResourceUrl,
-                            groupsCallResponse.getMessage()), e);
-        }
-
-        return groups;
-    }
-
     @Override
     public OAuthService createService(OAuthConfig config) {
         return new Okta20Service(this, config);
     }
 
-    private class Okta20Service extends OAuth20ServiceImpl {
+    private class Okta20Service extends OAuth20ServiceImpl implements DotService {
 
         Okta20Service(DefaultApi20 api, OAuthConfig config) {
             super(api, config);
@@ -227,6 +161,73 @@ public class OktaApi20 extends DefaultApi20 implements DotProvider {
         public void signRequest(Token accessToken, OAuthRequest request) {
             request.addHeader("Authorization", "Bearer " + accessToken.getToken());
         }
+
+        /**
+         * Custom implementation (extra call) in order to get roles/groups from the Okta server as
+         * the request that returns the user data does not have the user groups.
+         */
+        @Override
+        public Collection<String> getGroups(User user) {
+
+            final String providerName = getSimpleName();
+            final String groupPrefix = getProperty(providerName + "_GROUP_PREFIX");
+            final String organizationURL = getProperty(providerName + "_ORGANIZATION_URL");
+            final String apiToken = getProperty(providerName + "_API_TOKEN");
+            final String groupsResourceUrl = String
+                    .format(getProperty(providerName + "_GROUPS_RESOURCE_URL"),
+                            user.getEmailAddress());
+
+            final OAuthRequest oauthGroupsRequest = new OAuthRequest(Verb.GET,
+                    organizationURL + groupsResourceUrl);
+            oauthGroupsRequest.addHeader("Authorization", "SSWS " + apiToken);
+            oauthGroupsRequest.addHeader("Content-Type", "application/json");
+            oauthGroupsRequest.addHeader("Accept", "application/json");
+
+            final Response groupsCallResponse = oauthGroupsRequest.send();
+            if (!groupsCallResponse.isSuccessful()) {
+                throw new OAuthException(
+                        String.format("Unable to connect to end point [%s] [%s]",
+                                groupsResourceUrl,
+                                groupsCallResponse.getMessage()));
+            }
+
+            Collection<String> groups = new ArrayList<>();
+            try {
+                //Parse the response in order to get the user data
+                final JSONArray groupsJsonResponse = (JSONArray) new JSONTool()
+                        .generate(groupsCallResponse.getBody());
+
+                for (int i = 0; i < groupsJsonResponse.length(); i++) {
+                    JSONObject groupJSONData = groupsJsonResponse.getJSONObject(i);
+
+                    final JSONObject profile = groupJSONData.getJSONObject("profile");
+                    if (null != profile) {
+
+                        final String group = profile.getString("name");
+                        if (null != group) {
+
+                            //Verify if we need to filter by prefix
+                            if (null != groupPrefix && !groupPrefix.isEmpty()) {
+                                if (group.startsWith(groupPrefix)) {
+                                    groups.add(group);
+                                }
+                            } else {
+                                groups.add(group);
+                            }
+                        }
+                    }
+                }
+            } catch (JSONException e) {
+                throw new OAuthException(
+                        String.format(
+                                "Unable to get groups in remote authentication server [%s] [%s]",
+                                groupsResourceUrl,
+                                groupsCallResponse.getMessage()), e);
+            }
+
+            return groups;
+        }
+
     }
 
 }
