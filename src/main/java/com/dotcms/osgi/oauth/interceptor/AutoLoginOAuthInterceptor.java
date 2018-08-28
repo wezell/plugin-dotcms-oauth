@@ -25,7 +25,7 @@ import com.dotcms.enterprise.PasswordFactoryProxy;
 import com.dotcms.enterprise.de.qaware.heimdall.PasswordException;
 import com.dotcms.filters.interceptor.Result;
 import com.dotcms.filters.interceptor.WebInterceptor;
-import com.dotcms.osgi.oauth.provider.OktaApi20;
+import com.dotcms.osgi.oauth.provider.DotProvider;
 import com.dotcms.rendering.velocity.viewtools.JSONTool;
 import com.dotmarketing.business.APILocator;
 import com.dotmarketing.business.Role;
@@ -40,6 +40,7 @@ import com.liferay.portal.auth.PrincipalThreadLocal;
 import com.liferay.portal.model.User;
 import com.liferay.portal.util.WebKeys;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Date;
 import java.util.StringTokenizer;
 import javax.servlet.http.HttpServletRequest;
@@ -142,10 +143,11 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
      *
      * @return User
      */
-    private User authenticate(final HttpServletRequest request, final HttpServletResponse response,
-            final DefaultApi20 defaultApi20,
+    private void authenticate(final HttpServletRequest request, final HttpServletResponse response,
+            final DefaultApi20 apiProvider,
             final OAuthService service, final String protectedResourceUrl,
-            final String firstNameProp, final String lastNameProp) throws DotDataException {
+            final String firstNameProp, final String lastNameProp)
+            throws DotDataException {
 
         //Request the access token with the authentication code
         final Verifier verifier = new Verifier(request.getParameter("code"));
@@ -154,13 +156,7 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
 
         //Now that we have the token lets try a call to a restricted end point
         final OAuthRequest oauthRequest = new OAuthRequest(Verb.GET, protectedResourceUrl);
-
-        if (defaultApi20 instanceof OktaApi20) {
-            oauthRequest.addHeader("Authorization", "Bearer " + accessToken.getToken());
-        } else {
-            service.signRequest(accessToken, oauthRequest);
-        }
-
+        service.signRequest(accessToken, oauthRequest);
         final Response protectedCallResponse = oauthRequest.send();
         if (!protectedCallResponse.isSuccessful()) {
             throw new OAuthException(
@@ -170,16 +166,17 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
         }
 
         //Parse the response in order to get the user data
-        final JSONObject jsonResponse = (JSONObject) new JSONTool()
+        final JSONObject userJsonResponse = (JSONObject) new JSONTool()
                 .generate(protectedCallResponse.getBody());
 
         User user = null;
 
+        //Verify if the user already exist
         try {
-            //Verify if the user already exist
             Logger.info(this.getClass(), "Loading an user!");
+            final String email = userJsonResponse.getString("email");
             user = APILocator.getUserAPI()
-                    .loadByUserByEmail(jsonResponse.getString("email"), this.systemUser, false);
+                    .loadByUserByEmail(email, this.systemUser, false);
             Logger.info(this.getClass(), "User loaded!");
         } catch (Exception e) {
             Logger.warn(this, "No matching user, creating");
@@ -189,7 +186,8 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
         if (user == null) {
             try {
                 Logger.info(this.getClass(), "User not found, creating one!");
-                user = this.createUser(firstNameProp, lastNameProp, jsonResponse, this.systemUser);
+                user = this
+                        .createUser(firstNameProp, lastNameProp, userJsonResponse, this.systemUser);
             } catch (Exception e) {
                 Logger.warn(this, "Error creating user:" + e.getMessage(), e);
                 throw new DotDataException(e.getMessage());
@@ -198,14 +196,10 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
 
         if (user.isActive()) {
 
-            Logger.info(this.getClass(), "User is active, adding roles!");
-            final String rolesToAdd = getProperty(ROLES_TO_ADD);
-            final StringTokenizer st = new StringTokenizer(rolesToAdd, ",;");
-            while (st.hasMoreElements()) {
-                final String roleKey = st.nextToken().trim();
-                this.addRole(user, roleKey);
-            }
+            //Set the roles to the user
+            setRoles(apiProvider, userJsonResponse, user);
 
+            //Authenticate to dotCMS
             Logger.info(this.getClass(), "Doing login!");
             final boolean rememberMe = "true".equalsIgnoreCase(getProperty(REMEMBER_ME, "true"));
             APILocator.getLoginServiceAPI().doCookieLogin(PublicEncryptionFactory.encryptString
@@ -218,15 +212,45 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
                 httpSession.setAttribute(WebKeys.USER_ID, user.getUserId());
             }
         }
-
-        return user;
     } //authenticate.
+
+    private void setRoles(final DefaultApi20 apiProvider,
+            final JSONObject userJsonResponse,
+            final User user)
+            throws DotDataException {
+
+        /*
+        NOTE: We are not creating roles here, the role needs to exist in order to be
+        associated to the user
+         */
+
+        //First lets handle the roles we need to add from the configuration file
+        Logger.info(this.getClass(), "User is active, adding roles!");
+        final String rolesToAdd = getProperty(ROLES_TO_ADD);
+        final StringTokenizer st = new StringTokenizer(rolesToAdd, ",;");
+        while (st.hasMoreElements()) {
+            final String roleKey = st.nextToken().trim();
+            this.addRole(user, roleKey);
+        }
+
+        //Now from the remote server
+        Collection<String> remoteRoles;
+        if (apiProvider instanceof DotProvider) {
+            remoteRoles = ((DotProvider) apiProvider).getGroups(user);
+
+            if (null != remoteRoles && !remoteRoles.isEmpty()) {
+                for (final String roleKey : remoteRoles) {
+                    this.addRole(user, roleKey);
+                }
+            }
+        }
+
+    }
 
     private void addRole(final User user, final String roleKey) throws DotDataException {
 
         final Role role = APILocator.getRoleAPI().loadRoleByKey(roleKey);
         if (role != null && !APILocator.getRoleAPI().doesUserHaveRole(user, role)) {
-
             APILocator.getRoleAPI().addRoleToUser(role, user);
         }
     } // addRole.
