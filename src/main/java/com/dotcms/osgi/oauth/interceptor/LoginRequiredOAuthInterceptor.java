@@ -36,7 +36,11 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
     private static final String NAME = "LoginRequiredOAuthInterceptor_5_0_1";
 
     private static final String[] BACK_END_URLS =
-            new String[]{"/api", "/dotAdmin", "/dwr", "/c/", "/html"};
+            new String[]{"/api", "/dotAdmin", "/dwr", "/c/"};
+    private static final String[] BACK_END_URLS_TO_ALLOW =
+            new String[]{".bundle.", "/appconfiguration",
+                    "/authentication", ".chunk.", "/loginform",
+                    ".woff", ".ttf", "/logout"};
     private static final String[] FRONT_END_URLS =
             new String[]{"/dotCMS/login"};
 
@@ -91,8 +95,22 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
                 }
             }
 
-            if (requestingAuthentication && !Boolean.TRUE.toString()
+            //Should we use regular login?, we need to allow some urls in order to load the admin page
+            boolean isNative = true;
+            if (!Boolean.TRUE.toString()
                     .equalsIgnoreCase(request.getParameter(NATIVE))) {
+
+                isNative = false;
+
+                for (final String toCheck : BACK_END_URLS_TO_ALLOW) {
+                    if (requestedURI.contains(toCheck)) {
+                        isNative = true;//Allow to continue without authentication
+                        break;
+                    }
+                }
+            }
+
+            if (requestingAuthentication && !isNative) {
 
                 //Look for the provider to use
                 DefaultApi20 apiProvider = getAPIProvider(request, session);
