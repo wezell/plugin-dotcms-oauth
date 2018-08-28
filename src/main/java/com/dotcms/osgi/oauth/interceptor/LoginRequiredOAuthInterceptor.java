@@ -35,6 +35,11 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
 
     private static final String NAME = "LoginRequiredOAuthInterceptor_5_0_1";
 
+    private static final String[] BACK_END_URLS =
+            new String[]{"/api", "/dotAdmin", "/dwr", "/c/", "/html"};
+    private static final String[] FRONT_END_URLS =
+            new String[]{"/dotCMS/login"};
+
     private static final Token EMPTY_TOKEN = null;
 
     private final String oauthCallBackURL;
@@ -69,16 +74,21 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
 
             final HttpSession session = request.getSession(false);
 
-            String urlToVerify = null;
+            //Verify if a protected page was requested and we need to request a login
+            String[] urlsToVerify = new String[]{};
             if (this.isFrontEnd) {
-                urlToVerify = "/dotCMS/login";
+                urlsToVerify = FRONT_END_URLS;
             } else if (this.isBackEnd) {
-                urlToVerify = "/dotAdmin";
+                urlsToVerify = BACK_END_URLS;
             }
 
+            final String requestedURI = request.getRequestURI();
             boolean requestingAuthentication = false;
-            if (null != urlToVerify) {
-                requestingAuthentication = request.getRequestURI().startsWith(urlToVerify);
+            for (final String toCheck : urlsToVerify) {
+                if (requestedURI.startsWith(toCheck)) {
+                    requestingAuthentication = true;
+                    break;
+                }
             }
 
             if (requestingAuthentication && !Boolean.TRUE.toString()

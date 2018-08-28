@@ -201,14 +201,21 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
 
             //Authenticate to dotCMS
             Logger.info(this.getClass(), "Doing login!");
-            final boolean rememberMe = "true".equalsIgnoreCase(getProperty(REMEMBER_ME, "true"));
-            APILocator.getLoginServiceAPI().doCookieLogin(PublicEncryptionFactory.encryptString
-                    (user.getUserId()), request, response, rememberMe);
+            HttpSession httpSession = request.getSession(true);
+
+            if (this.isFrontEnd) {
+                httpSession.setAttribute(com.dotmarketing.util.WebKeys.CMS_USER, user);
+            }
 
             if (this.isBackEnd) {
+
+                final boolean rememberMe = "true"
+                        .equalsIgnoreCase(getProperty(REMEMBER_ME, "true"));
+                APILocator.getLoginServiceAPI().doCookieLogin(PublicEncryptionFactory.encryptString
+                        (user.getUserId()), request, response, rememberMe);
+
                 Logger.info(this.getClass(), "Finish back end login!");
                 PrincipalThreadLocal.setName(user.getUserId());
-                final HttpSession httpSession = request.getSession(true);
                 httpSession.setAttribute(WebKeys.USER_ID, user.getUserId());
             }
         }
