@@ -167,7 +167,7 @@ public class OktaApi20 extends DefaultApi20 implements DotProvider {
          * the request that returns the user data does not have the user groups.
          */
         @Override
-        public Collection<String> getGroups(User user) {
+        public Collection<String> getGroups(User user, final JSONObject userJsonResponse) {
 
             final String providerName = getSimpleName();
             final String groupPrefix = getProperty(providerName + "_GROUP_PREFIX");

@@ -242,7 +242,7 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
         //Now from the remote server
         Collection<String> remoteRoles;
         if (service instanceof DotService) {
-            remoteRoles = ((DotService) service).getGroups(user);
+            remoteRoles = ((DotService) service).getGroups(user, userJsonResponse);
 
             if (null != remoteRoles && !remoteRoles.isEmpty()) {
                 for (final String roleKey : remoteRoles) {
