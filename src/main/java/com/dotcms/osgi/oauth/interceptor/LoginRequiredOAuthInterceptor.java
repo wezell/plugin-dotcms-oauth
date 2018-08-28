@@ -138,7 +138,7 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
     private synchronized String getOauthProvider(final HttpServletRequest request, final HttpSession session) {
 
         String oauthProvider = getProperty(OAUTH_PROVIDER_DEFAULT,
-                "org.scribe.builder.api.Google2Api");
+                "org.scribe.builder.api.FacebookApi");
 
         if (null != session && null != session.getAttribute(OAUTH_PROVIDER)) {
             oauthProvider = (String) session.getAttribute(OAUTH_PROVIDER);

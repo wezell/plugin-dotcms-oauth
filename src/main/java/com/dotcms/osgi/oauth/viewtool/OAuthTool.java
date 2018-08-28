@@ -1,10 +1,9 @@
 package com.dotcms.osgi.oauth.viewtool;
-import java.util.ArrayList;
-import java.util.List;
-
-import org.apache.velocity.tools.view.tools.ViewTool;
 
 import com.dotcms.osgi.oauth.util.OAuthPropertyBundle;
+import java.util.ArrayList;
+import java.util.List;
+import org.apache.velocity.tools.view.tools.ViewTool;
 
 public class OAuthTool implements ViewTool {
 
@@ -20,6 +19,7 @@ public class OAuthTool implements ViewTool {
 
 		String google = OAuthPropertyBundle.getProperty("Google2Api_API_KEY", NOTSET);
 		String facebook = OAuthPropertyBundle.getProperty("FacebookApi_API_KEY", NOTSET);
+		String okta = OAuthPropertyBundle.getProperty("OktaApi20_API_KEY", NOTSET);
 
 		if(!NOTSET.equals(google)){
 			providers.add(google);
@@ -27,7 +27,10 @@ public class OAuthTool implements ViewTool {
 
 		if(!NOTSET.equals(facebook)){
 			providers.add(facebook);
-			
+		}
+
+		if (!NOTSET.equals(okta)) {
+			providers.add(okta);
 		}
 
 		return providers;
