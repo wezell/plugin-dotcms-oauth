@@ -1,5 +1,6 @@
 package com.dotcms.osgi.oauth.interceptor;
 
+import static com.dotcms.osgi.oauth.OauthUtils.OAUTH_PROVIDER;
 import static com.dotcms.osgi.oauth.util.OAuthPropertyBundle.getProperty;
 
 import com.dotcms.filters.interceptor.Result;
@@ -83,6 +84,10 @@ public class LogoutOAuthInterceptor implements WebInterceptor {
                         if (service instanceof DotService) {
                             ((DotService) service).revokeToken(accessToken);
                         }
+
+                        //Cleaning up the session
+                        session.removeAttribute(OAuthConstants.ACCESS_TOKEN);
+                        session.removeAttribute(OAUTH_PROVIDER);
 
                     } else {
                         Logger.error(this.getClass(), "Unable to invalidate access token."

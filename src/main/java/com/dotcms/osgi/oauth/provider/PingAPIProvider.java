@@ -151,8 +151,8 @@ public class PingAPIProvider extends DefaultApi20 implements DotProvider {
 
             request.addHeader("Content-Type", "application/x-www-form-urlencoded");
 
-            request.addBodyParameter("client_id", config.getApiKey());
-            request.addBodyParameter("client_secret", config.getApiSecret());
+            request.addBodyParameter(OAuthConstants.CLIENT_ID, config.getApiKey());
+            request.addBodyParameter(OAuthConstants.CLIENT_SECRET, config.getApiSecret());
 
             Response response = request.send();
             return api.getAccessTokenExtractor().extract(response.getBody());

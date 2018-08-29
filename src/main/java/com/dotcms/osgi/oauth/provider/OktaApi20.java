@@ -5,6 +5,7 @@ import static com.dotcms.osgi.oauth.util.OAuthPropertyBundle.getProperty;
 import com.dotcms.osgi.oauth.OauthUtils;
 import com.dotcms.osgi.oauth.service.DotService;
 import com.dotcms.rendering.velocity.viewtools.JSONTool;
+import com.dotmarketing.util.Logger;
 import com.dotmarketing.util.json.JSONArray;
 import com.dotmarketing.util.json.JSONException;
 import com.dotmarketing.util.json.JSONObject;
@@ -16,6 +17,7 @@ import org.scribe.builder.api.DefaultApi20;
 import org.scribe.exceptions.OAuthException;
 import org.scribe.extractors.AccessTokenExtractor;
 import org.scribe.model.OAuthConfig;
+import org.scribe.model.OAuthConstants;
 import org.scribe.model.OAuthRequest;
 import org.scribe.model.Response;
 import org.scribe.model.Token;
@@ -44,6 +46,11 @@ public class OktaApi20 extends DefaultApi20 implements DotProvider {
 
     private String getBaseAccessTokenEndpoint() {
         return String.format("%s/oauth2/v1/token", getOrganizationURL());
+    }
+
+    @Override
+    public String getRevokeTokenEndpoint() {
+        return String.format("%s/oauth2/v1/revoke", getOrganizationURL());
     }
 
     @Override
@@ -129,8 +136,14 @@ public class OktaApi20 extends DefaultApi20 implements DotProvider {
 
     private class Okta20Service extends OAuth20ServiceImpl implements DotService {
 
+        OktaApi20 api;
+        OAuthConfig config;
+
         Okta20Service(DefaultApi20 api, OAuthConfig config) {
             super(api, config);
+
+            this.api = (OktaApi20) api;
+            this.config = config;
         }
 
         @Override
@@ -202,6 +215,38 @@ public class OktaApi20 extends DefaultApi20 implements DotProvider {
             }
 
             return groups;
+        }
+
+        @Override
+        public void revokeToken(String token) {
+
+            //Now lets try to invalidate the token
+            final String revokeURL = this.api.getRevokeTokenEndpoint();
+
+            if (null != revokeURL && !revokeURL.isEmpty()) {
+
+                final OAuthRequest revokeRequest = new OAuthRequest(Verb.POST, revokeURL);
+                revokeRequest.addQuerystringParameter("token", token);
+                revokeRequest
+                        .addQuerystringParameter("token_type_hint", OAuthConstants.ACCESS_TOKEN);
+                revokeRequest.addQuerystringParameter(OAuthConstants.CLIENT_ID, config.getApiKey());
+                revokeRequest.addQuerystringParameter(OAuthConstants.CLIENT_SECRET,
+                        config.getApiSecret());
+
+                final Response revokeCallResponse = revokeRequest.send();
+
+                if (!revokeCallResponse.isSuccessful()) {
+                    Logger.error(this.getClass(),
+                            String.format("Unable to revoke access token [%s] [%s] [%s]",
+                                    revokeURL,
+                                    token,
+                                    revokeCallResponse.getMessage()));
+                } else {
+                    Logger.info(this.getClass(), "Successfully revoked access token");
+                    Logger.info(this.getClass(), revokeCallResponse.getBody());
+                }
+
+            }
         }
 
     }
