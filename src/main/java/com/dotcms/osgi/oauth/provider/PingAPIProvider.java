@@ -188,9 +188,9 @@ public class PingAPIProvider extends DefaultApi20 implements DotProvider {
             final String revokeURL = this.api.getRevokeTokenEndpoint();
             if (null != revokeURL && !revokeURL.isEmpty()) {
 
-                final OAuthRequest revokeRequest = new OAuthRequest(Verb.GET, revokeURL);
-                revokeRequest.addQuerystringParameter(OAuthConstants.ACCESS_TOKEN, token);
-                revokeRequest.addQuerystringParameter("token_type_hint", "access_token");
+                final OAuthRequest revokeRequest = new OAuthRequest(Verb.POST, revokeURL);
+                revokeRequest.addBodyParameter("token", token);
+                revokeRequest.addBodyParameter("token_type_hint", "access_token");
                 revokeRequest.addBodyParameter("client_id", config.getApiKey());
                 revokeRequest.addBodyParameter("client_secret", config.getApiSecret());
                 revokeRequest.addHeader("Content-Type", "application/x-www-form-urlencoded");
@@ -199,10 +199,11 @@ public class PingAPIProvider extends DefaultApi20 implements DotProvider {
 
                 if (!revokeCallResponse.isSuccessful()) {
                     Logger.error(this.getClass(),
-                            String.format("Unable to revoke access token [%s] [%s] [%s]",
+                            String.format("Unable to revoke access token [%s] [%s] [%s] [%s]",
                                     revokeURL,
                                     token,
-                                    revokeCallResponse.getMessage()));
+                                    revokeCallResponse.getMessage(),
+                                    revokeCallResponse.getBody()));
                 } else {
                     Logger.info(this.getClass(), "Successfully revoked access token");
                     Logger.info(this.getClass(), revokeCallResponse.getBody());
