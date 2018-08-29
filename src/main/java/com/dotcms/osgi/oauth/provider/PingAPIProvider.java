@@ -2,8 +2,8 @@ package com.dotcms.osgi.oauth.provider;
 
 import static com.dotcms.osgi.oauth.util.OAuthPropertyBundle.getProperty;
 
+import com.dotcms.osgi.oauth.OauthUtils;
 import com.dotcms.osgi.oauth.service.DotService;
-import com.dotcms.rendering.velocity.viewtools.JSONTool;
 import com.dotmarketing.util.Logger;
 import com.dotmarketing.util.json.JSONException;
 import com.dotmarketing.util.json.JSONObject;
@@ -23,8 +23,6 @@ import org.scribe.model.Verb;
 import org.scribe.model.Verifier;
 import org.scribe.oauth.OAuth20ServiceImpl;
 import org.scribe.oauth.OAuthService;
-import org.scribe.utils.OAuthEncoder;
-import org.scribe.utils.Preconditions;
 
 /**
  * https://www.pingidentity.com/content/developer/en/resources/oauth-2-0-developers-guide.html
@@ -89,34 +87,11 @@ public class PingAPIProvider extends DefaultApi20 implements DotProvider {
 
         return new AccessTokenExtractor() {
 
-            private final static String ACCESS_TOKEN = "access_token";
-            private static final String EMPTY_SECRET = "";
-
             @Override
             public Token extract(String response) {
-
-                Preconditions.checkEmptyString(response,
-                        "Response body is incorrect. Can't extract a token from an empty string");
-
-                try {
-                    final JSONObject jsonResponse = (JSONObject) new JSONTool().generate(response);
-                    if (jsonResponse.has(ACCESS_TOKEN)) {
-                        String token = OAuthEncoder
-                                .decode(jsonResponse.get(ACCESS_TOKEN).toString());
-                        return new Token(token, EMPTY_SECRET, response);
-                    } else {
-                        throw new OAuthException(
-                                "Response body is incorrect. Can't extract a token from this: '"
-                                        + response
-                                        + "'", null);
-                    }
-                } catch (Exception e) {
-                    throw new OAuthException(
-                            "Response body is incorrect. Can't extract a token from this: '"
-                                    + response
-                                    + "'", null);
-                }
+                return OauthUtils.getInstance().extractToken(response);
             }
+
         };
     }
 

@@ -3,10 +3,17 @@ package com.dotcms.osgi.oauth;
 import static com.dotcms.osgi.oauth.util.OAuthPropertyBundle.getProperty;
 
 import com.dotcms.osgi.oauth.util.OAuthPropertyBundle;
+import com.dotcms.rendering.velocity.viewtools.JSONTool;
 import com.dotmarketing.util.Logger;
+import com.dotmarketing.util.json.JSONObject;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
 import org.scribe.builder.api.DefaultApi20;
+import org.scribe.exceptions.OAuthException;
+import org.scribe.model.OAuthConstants;
+import org.scribe.model.Token;
+import org.scribe.utils.OAuthEncoder;
+import org.scribe.utils.Preconditions;
 
 /**
  * @author Jonathan Gamba 8/24/18
@@ -31,6 +38,8 @@ public class OauthUtils {
     public static final String GENDER = "gender";
 
     public static final String REMEMBER_ME = "rememberMe";
+
+    private static final String EMPTY_SECRET = "";
 
     private static class SingletonHolder {
 
@@ -100,5 +109,34 @@ public class OauthUtils {
 
         return oauthProvider;
     } // getOauthProvider.
+
+    /**
+     * Default method implementation to extract the access token from the request token json
+     * response
+     */
+    public Token extractToken(String response) {
+
+        Preconditions.checkEmptyString(response,
+                "Response body is incorrect. Can't extract a token from an empty string");
+
+        try {
+            final JSONObject jsonResponse = (JSONObject) new JSONTool().generate(response);
+            if (jsonResponse.has(OAuthConstants.ACCESS_TOKEN)) {
+                String token = OAuthEncoder
+                        .decode(jsonResponse.get(OAuthConstants.ACCESS_TOKEN).toString());
+                return new Token(token, EMPTY_SECRET, response);
+            } else {
+                throw new OAuthException(
+                        "Response body is incorrect. Can't extract a token from this: '"
+                                + response
+                                + "'", null);
+            }
+        } catch (Exception e) {
+            throw new OAuthException(
+                    "Response body is incorrect. Can't extract a token from this: '"
+                            + response
+                            + "'", null);
+        }
+    }
 
 }
