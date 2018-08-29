@@ -5,4 +5,8 @@ package com.dotcms.osgi.oauth.provider;
  */
 public interface DotProvider {
 
+    default String getRevokeTokenEndpoint() {
+        return null;
+    }
+
 }

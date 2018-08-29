@@ -4,6 +4,7 @@ import static com.dotcms.osgi.oauth.util.OAuthPropertyBundle.getProperty;
 
 import com.dotcms.osgi.oauth.service.DotService;
 import com.dotcms.rendering.velocity.viewtools.JSONTool;
+import com.dotmarketing.util.Logger;
 import com.dotmarketing.util.json.JSONException;
 import com.dotmarketing.util.json.JSONObject;
 import com.liferay.portal.model.User;
@@ -43,6 +44,11 @@ public class PingAPIProvider extends DefaultApi20 implements DotProvider {
     @Override
     public String getAccessTokenEndpoint() {
         return String.format("%s/as/token.oauth2", getOrganizationURL());
+    }
+
+    @Override
+    public String getRevokeTokenEndpoint() {
+        return String.format("%s/as/revoke_token.oauth2", getOrganizationURL());
     }
 
     @Override
@@ -141,12 +147,12 @@ public class PingAPIProvider extends DefaultApi20 implements DotProvider {
 
     private class PingService extends OAuth20ServiceImpl implements DotService {
 
-        DefaultApi20 api;
+        PingAPIProvider api;
         OAuthConfig config;
 
         PingService(DefaultApi20 api, OAuthConfig config) {
             super(api, config);
-            this.api = api;
+            this.api = (PingAPIProvider) api;
             this.config = config;
         }
 
@@ -197,6 +203,38 @@ public class PingAPIProvider extends DefaultApi20 implements DotProvider {
             return groupsCollection;
         }
 
+        /**
+         * https://docs.pingidentity.com/bundle/pf_sm_pingfederateOauth20Endpoints_pf82/page/concept/tokenRevocationEndpoint.html
+         */
+        @Override
+        public void revokeToken(String token) {
+
+            //Now lets try to invalidate the token
+            final String revokeURL = this.api.getRevokeTokenEndpoint();
+            if (null != revokeURL && !revokeURL.isEmpty()) {
+
+                final OAuthRequest revokeRequest = new OAuthRequest(Verb.GET, revokeURL);
+                revokeRequest.addQuerystringParameter(OAuthConstants.ACCESS_TOKEN, token);
+                revokeRequest.addQuerystringParameter("token_type_hint", "access_token");
+                revokeRequest.addBodyParameter("client_id", config.getApiKey());
+                revokeRequest.addBodyParameter("client_secret", config.getApiSecret());
+                revokeRequest.addHeader("Content-Type", "application/x-www-form-urlencoded");
+
+                final Response revokeCallResponse = revokeRequest.send();
+
+                if (!revokeCallResponse.isSuccessful()) {
+                    Logger.error(this.getClass(),
+                            String.format("Unable to revoke access token [%s] [%s] [%s]",
+                                    revokeURL,
+                                    token,
+                                    revokeCallResponse.getMessage()));
+                } else {
+                    Logger.info(this.getClass(), "Successfully revoked access token");
+                    Logger.info(this.getClass(), revokeCallResponse.getBody());
+                }
+
+            }
+        }
     }
 
 }

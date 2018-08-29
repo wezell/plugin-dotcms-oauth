@@ -8,16 +8,14 @@
 package com.dotcms.osgi.oauth.interceptor;
 
 import static com.dotcms.osgi.oauth.OauthUtils.CALLBACK_URL;
-import static com.dotcms.osgi.oauth.OauthUtils.CODE_PARAM_KEY;
 import static com.dotcms.osgi.oauth.OauthUtils.FEMALE;
 import static com.dotcms.osgi.oauth.OauthUtils.GENDER;
 import static com.dotcms.osgi.oauth.OauthUtils.OAUTH_API_PROVIDER;
+import static com.dotcms.osgi.oauth.OauthUtils.OAUTH_PROVIDER;
 import static com.dotcms.osgi.oauth.OauthUtils.OAUTH_REDIRECT;
 import static com.dotcms.osgi.oauth.OauthUtils.OAUTH_SERVICE;
 import static com.dotcms.osgi.oauth.OauthUtils.REMEMBER_ME;
 import static com.dotcms.osgi.oauth.OauthUtils.ROLES_TO_ADD;
-import static com.dotcms.osgi.oauth.OauthUtils.forBackEnd;
-import static com.dotcms.osgi.oauth.OauthUtils.forFrontEnd;
 import static com.dotcms.osgi.oauth.util.OAuthPropertyBundle.getProperty;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -25,6 +23,7 @@ import com.dotcms.enterprise.PasswordFactoryProxy;
 import com.dotcms.enterprise.de.qaware.heimdall.PasswordException;
 import com.dotcms.filters.interceptor.Result;
 import com.dotcms.filters.interceptor.WebInterceptor;
+import com.dotcms.osgi.oauth.OauthUtils;
 import com.dotcms.osgi.oauth.service.DotService;
 import com.dotcms.rendering.velocity.viewtools.JSONTool;
 import com.dotmarketing.business.APILocator;
@@ -48,6 +47,7 @@ import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import org.scribe.builder.api.DefaultApi20;
 import org.scribe.exceptions.OAuthException;
+import org.scribe.model.OAuthConstants;
 import org.scribe.model.OAuthRequest;
 import org.scribe.model.Response;
 import org.scribe.model.Token;
@@ -64,9 +64,12 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
     private final User systemUser;
 
     public AutoLoginOAuthInterceptor() throws DotDataException {
+
+        OauthUtils oauthUtils = OauthUtils.getInstance();
+
         this.oauthCallBackURL = getProperty(CALLBACK_URL);
-        this.isFrontEnd = forFrontEnd();
-        this.isBackEnd = forBackEnd();
+        this.isFrontEnd = oauthUtils.forFrontEnd();
+        this.isBackEnd = oauthUtils.forBackEnd();
         this.systemUser = APILocator.getUserAPI().getSystemUser();
     }
 
@@ -92,7 +95,7 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
 
             if (requestingAuthentication) {
 
-                final String responseCode = request.getParameter(CODE_PARAM_KEY);
+                final String responseCode = request.getParameter(OAuthConstants.CODE);
                 if (null != responseCode) {
 
                     Logger.info(this.getClass(), "Code param found, doing callback");
@@ -123,6 +126,8 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
                             session.removeAttribute(OAUTH_REDIRECT);
                             session.removeAttribute(OAUTH_SERVICE);
                             session.removeAttribute(OAUTH_API_PROVIDER);
+                            session.setAttribute(OAUTH_PROVIDER,
+                                    apiProvider.getClass().getCanonicalName());
                             response.sendRedirect(authorizationUrl);
                             result = Result.SKIP_NO_CHAIN; // needs to stop the filter chain.
                         }
@@ -217,6 +222,9 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
                 PrincipalThreadLocal.setName(user.getUserId());
                 httpSession.setAttribute(WebKeys.USER_ID, user.getUserId());
             }
+
+            //Keep the token in session
+            httpSession.setAttribute(OAuthConstants.ACCESS_TOKEN, accessToken.getToken());
         }
     } //authenticate.
 

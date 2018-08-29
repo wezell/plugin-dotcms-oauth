@@ -4,17 +4,14 @@ import static com.dotcms.osgi.oauth.OauthUtils.CALLBACK_URL;
 import static com.dotcms.osgi.oauth.OauthUtils.JAVAX_SERVLET_FORWARD_REQUEST_URI;
 import static com.dotcms.osgi.oauth.OauthUtils.NATIVE;
 import static com.dotcms.osgi.oauth.OauthUtils.OAUTH_API_PROVIDER;
-import static com.dotcms.osgi.oauth.OauthUtils.OAUTH_PROVIDER;
-import static com.dotcms.osgi.oauth.OauthUtils.OAUTH_PROVIDER_DEFAULT;
 import static com.dotcms.osgi.oauth.OauthUtils.OAUTH_REDIRECT;
 import static com.dotcms.osgi.oauth.OauthUtils.OAUTH_SERVICE;
 import static com.dotcms.osgi.oauth.OauthUtils.REFERRER;
-import static com.dotcms.osgi.oauth.OauthUtils.forBackEnd;
-import static com.dotcms.osgi.oauth.OauthUtils.forFrontEnd;
 import static com.dotcms.osgi.oauth.util.OAuthPropertyBundle.getProperty;
 
 import com.dotcms.filters.interceptor.Result;
 import com.dotcms.filters.interceptor.WebInterceptor;
+import com.dotcms.osgi.oauth.OauthUtils;
 import com.dotmarketing.business.APILocator;
 import com.dotmarketing.util.Logger;
 import java.io.IOException;
@@ -49,11 +46,15 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
     private final String oauthCallBackURL;
     private final boolean isFrontEnd;
     private final boolean isBackEnd;
+    private final OauthUtils oauthUtils;
 
     public LoginRequiredOAuthInterceptor() {
+
+        this.oauthUtils = OauthUtils.getInstance();
+
         this.oauthCallBackURL = getProperty(CALLBACK_URL);
-        this.isFrontEnd = forFrontEnd();
-        this.isBackEnd = forBackEnd();
+        this.isFrontEnd = this.oauthUtils.forFrontEnd();
+        this.isBackEnd = this.oauthUtils.forBackEnd();
     }
 
     @Override
@@ -113,7 +114,7 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
             if (requestingAuthentication && !isNative) {
 
                 //Look for the provider to use
-                DefaultApi20 apiProvider = getAPIProvider(request, session);
+                DefaultApi20 apiProvider = this.oauthUtils.getAPIProvider(request, session);
                 if (null != apiProvider) {
 
                     final String callbackHost = this.getCallbackHost(request);
@@ -142,46 +143,6 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
 
         return result; // if it is log in, continue!
     } // intercept.
-
-    private DefaultApi20 getAPIProvider(HttpServletRequest request, HttpSession session) {
-        //Look for the provider to use
-        String oauthProvider = getOauthProvider(request, session);
-
-        DefaultApi20 apiProvider = null;
-        if (null != oauthProvider) {
-
-            try {
-                //Initializing the API provider
-                apiProvider = (DefaultApi20) Class.forName(oauthProvider).newInstance();
-            } catch (Exception e) {
-                Logger.error(this.getClass(),
-                        String.format("Unable to instantiate API provider [%s] [%s]",
-                                oauthProvider, e.getMessage()), e);
-            }
-        }
-
-        return apiProvider;
-    }
-
-    private synchronized String getOauthProvider(final HttpServletRequest request, final HttpSession session) {
-
-        String oauthProvider = getProperty(OAUTH_PROVIDER_DEFAULT,
-                "org.scribe.builder.api.FacebookApi");
-
-        if (null != session && null != session.getAttribute(OAUTH_PROVIDER)) {
-            oauthProvider = (String) session.getAttribute(OAUTH_PROVIDER);
-        }
-
-        if (null != request.getParameter(OAUTH_PROVIDER)) {
-            oauthProvider = request.getParameter(OAUTH_PROVIDER);
-        }
-
-        if (null != session) {
-            session.setAttribute(OAUTH_PROVIDER, oauthProvider);
-        }
-
-        return oauthProvider;
-    } // getOauthProvider.
 
     private void sendForAuthorization(final HttpServletRequest request,
             final HttpServletResponse response,

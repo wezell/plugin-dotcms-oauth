@@ -4,6 +4,7 @@ import com.dotcms.filters.interceptor.FilterWebInterceptorProvider;
 import com.dotcms.filters.interceptor.WebInterceptorDelegate;
 import com.dotcms.osgi.oauth.interceptor.AutoLoginOAuthInterceptor;
 import com.dotcms.osgi.oauth.interceptor.LoginRequiredOAuthInterceptor;
+import com.dotcms.osgi.oauth.interceptor.LogoutOAuthInterceptor;
 import com.dotcms.osgi.oauth.viewtool.OAuthToolInfo;
 import com.dotmarketing.filters.AutoLoginFilter;
 import com.dotmarketing.filters.LoginRequiredFilter;
@@ -19,6 +20,7 @@ public class Activator extends GenericBundleActivator {
 
     private LoginRequiredOAuthInterceptor loginRequiredOAuthInterceptor;
     private AutoLoginOAuthInterceptor autoLoginOAuthInterceptor;
+    private LogoutOAuthInterceptor logoutOAuthInterceptor;
 
     private LoggerContext pluginLoggerContext;
 
@@ -54,6 +56,10 @@ public class Activator extends GenericBundleActivator {
         final WebInterceptorDelegate autoLoginDelegate = filterWebInterceptorProvider
                 .getDelegate(AutoLoginFilter.class);
         if (null != autoLoginDelegate) {
+            System.out.println("Adding the LogoutOAuthInterceptor");
+            this.logoutOAuthInterceptor = new LogoutOAuthInterceptor();
+            autoLoginDelegate.addFirst(this.logoutOAuthInterceptor);
+
             System.out.println("Adding the OAuth2Interceptor");
             this.autoLoginOAuthInterceptor = new AutoLoginOAuthInterceptor();
             autoLoginDelegate.addFirst(this.autoLoginOAuthInterceptor);
@@ -77,7 +83,7 @@ public class Activator extends GenericBundleActivator {
 
             if (null != loginRequiredDelegate) {
                 System.out.println("Removing the BackEndLoginRequiredOAuthInterceptor");
-                loginRequiredDelegate.remove(this.loginRequiredOAuthInterceptor.getName(), true);
+                loginRequiredDelegate.remove(LoginRequiredOAuthInterceptor.class.getName(), true);
             }
         }
 
@@ -88,6 +94,16 @@ public class Activator extends GenericBundleActivator {
             if (null != autoLoginDelegate) {
                 System.out.println("Removing the OAuth2Interceptor");
                 autoLoginDelegate.remove(AutoLoginOAuthInterceptor.class.getName(), true);
+            }
+        }
+
+        if (null != this.logoutOAuthInterceptor) {
+            final WebInterceptorDelegate autoLoginDelegate = filterWebInterceptorProvider
+                    .getDelegate(AutoLoginFilter.class);
+
+            if (null != autoLoginDelegate) {
+                System.out.println("Removing the LogoutOAuthInterceptor");
+                autoLoginDelegate.remove(LogoutOAuthInterceptor.class.getName(), true);
             }
         }
 

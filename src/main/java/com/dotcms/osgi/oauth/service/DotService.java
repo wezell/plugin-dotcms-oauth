@@ -16,4 +16,6 @@ public interface DotService {
      */
     Collection<String> getGroups(User user, final JSONObject userJsonResponse);
 
+    default void revokeToken(final String token) {}
+
 }
