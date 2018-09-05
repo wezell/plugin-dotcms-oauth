@@ -1,222 +1,114 @@
 package com.dotcms.osgi.oauth;
 
-import com.dotcms.cms.login.LoginServiceAPI;
 import com.dotcms.filters.interceptor.FilterWebInterceptorProvider;
-import com.dotcms.filters.interceptor.Result;
-import com.dotcms.filters.interceptor.WebInterceptor;
-import com.dotcms.osgi.oauth.util.OAuthPropertyBundle;
+import com.dotcms.filters.interceptor.WebInterceptorDelegate;
+import com.dotcms.osgi.oauth.interceptor.AutoLoginOAuthInterceptor;
+import com.dotcms.osgi.oauth.interceptor.LoginRequiredOAuthInterceptor;
+import com.dotcms.osgi.oauth.interceptor.LogoutOAuthInterceptor;
 import com.dotcms.osgi.oauth.viewtool.OAuthToolInfo;
-import org.apache.commons.lang.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.core.LoggerContext;
-import org.tuckey.web.filters.urlrewrite.Condition;
-import org.tuckey.web.filters.urlrewrite.NormalRule;
-import org.tuckey.web.filters.urlrewrite.Rule;
-import com.dotmarketing.business.APILocator;
-import com.dotmarketing.filters.CMSFilter;
-import com.dotmarketing.filters.DotUrlRewriteFilter;
+import com.dotmarketing.filters.AutoLoginFilter;
 import com.dotmarketing.filters.LoginRequiredFilter;
 import com.dotmarketing.loggers.Log4jUtil;
 import com.dotmarketing.osgi.GenericBundleActivator;
 import com.dotmarketing.util.Config;
 import com.dotmarketing.util.Logger;
-import com.liferay.portal.util.WebKeys;
-import org.apache.felix.http.api.ExtHttpService;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.LoggerContext;
 import org.osgi.framework.BundleContext;
-import org.osgi.framework.ServiceReference;
-
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpSession;
-import java.io.IOException;
-import java.text.MessageFormat;
-import java.util.ArrayList;
-import java.util.List;
-
-import static com.dotcms.osgi.oauth.util.OAuthPropertyBundle.getProperty;
 
 public class Activator extends GenericBundleActivator {
 
-    private static final String NATIVE = "native";
-    private List<Rule> rules = new ArrayList<Rule>();
-    private ExtHttpService httpService;
-    private OAuth2Servlet servlet;
-    private static final String OAUTH_URL = "/oauth2";
+    private LoginRequiredOAuthInterceptor loginRequiredOAuthInterceptor;
+    private AutoLoginOAuthInterceptor autoLoginOAuthInterceptor;
+    private LogoutOAuthInterceptor logoutOAuthInterceptor;
+
     private LoggerContext pluginLoggerContext;
-    private BackEndLoginRequiredOAuthInterceptor backEndLoginInterceptor;
-    private LoginServiceAPI loginServiceAPI;
 
     @SuppressWarnings("unchecked")
-    public void start(BundleContext context) throws Exception {
+    public void start(org.osgi.framework.BundleContext context) throws Exception {
 
-        this.loginServiceAPI = APILocator.getLoginServiceAPI();
         //Initializing log4j...
         final LoggerContext dotcmsLoggerContext = Log4jUtil.getLoggerContext();
 
         //Initialing the log4j context of this plugin based on the dotCMS logger context
-        this.pluginLoggerContext = (LoggerContext) LogManager.getContext(this.getClass().getClassLoader(),
-                false,
-                dotcmsLoggerContext,
-                dotcmsLoggerContext.getConfigLocation());
+        this.pluginLoggerContext = (LoggerContext) LogManager
+                .getContext(this.getClass().getClassLoader(),
+                        false,
+                        dotcmsLoggerContext,
+                        dotcmsLoggerContext.getConfigLocation());
 
         Logger.info(this.getClass(), "Starting OSGi OAuth Filter");
 
-        // Initializing services...
         this.initializeServices(context);
-
-        final String useFor = OAuthPropertyBundle.getProperty("USE_OAUTH_FOR","").toLowerCase();
-        final boolean frontEnd = useFor.contains ("frontend");
-        final boolean backEnd = useFor.contains ("backend");
-
         this.registerViewToolService(context, new OAuthToolInfo());
 
-        ServiceReference<ExtHttpService> sRef = (ServiceReference<ExtHttpService>) context.getServiceReference(ExtHttpService.class.getName());
-        if ( sRef != null ) {
+        final FilterWebInterceptorProvider filterWebInterceptorProvider = FilterWebInterceptorProvider
+                .getInstance(Config.CONTEXT);
 
-            //Publish bundle services
-            this.publishBundleServices( context );
-            this.httpService = (ExtHttpService) context.getService( sRef );
-
-            try {
-                //Registering a simple test servlet
-                servlet = new OAuth2Servlet();
-                httpService.registerServlet( OAUTH_URL, servlet, null, null );
-
-            } catch ( Exception e ) {
-                e.printStackTrace();
-            }
-
-            CMSFilter.addExclude( "/app" + OAUTH_URL );
+        final WebInterceptorDelegate loginRequiredDelegate = filterWebInterceptorProvider
+                .getDelegate(LoginRequiredFilter.class);
+        if (null != loginRequiredDelegate) {
+            System.out.println("Adding the LoginRequiredOAuthInterceptor");
+            this.loginRequiredOAuthInterceptor = new LoginRequiredOAuthInterceptor();
+            loginRequiredDelegate.addFirst(this.loginRequiredOAuthInterceptor);
         }
 
-        this.addRules(frontEnd, backEnd);
+        final WebInterceptorDelegate autoLoginDelegate = filterWebInterceptorProvider
+                .getDelegate(AutoLoginFilter.class);
+        if (null != autoLoginDelegate) {
+            System.out.println("Adding the LogoutOAuthInterceptor");
+            this.logoutOAuthInterceptor = new LogoutOAuthInterceptor();
+            autoLoginDelegate.addFirst(this.logoutOAuthInterceptor);
 
-        Logger.info(this.getClass(), "We now have " + DotUrlRewriteFilter.getUrlRewriteFilter().getRules().size() + " rules");
+            System.out.println("Adding the OAuth2Interceptor");
+            this.autoLoginOAuthInterceptor = new AutoLoginOAuthInterceptor();
+            autoLoginDelegate.addFirst(this.autoLoginOAuthInterceptor);
+        }
 
     }
 
-    private void addRules(final boolean frontEnd, final boolean backEnd) throws Exception {
-        NormalRule rule = null;
-
-        //Create Conditions for this rule
-        final Condition condition1 = new Condition();
-        condition1.setName(NATIVE);
-        condition1.setType("parameter");
-        condition1.setOperator("notequal");
-        condition1.setValue( "^.+$" );
-
-        //Create another Condition for this rule
-        final Condition condition2 = new Condition();
-        condition2.setName( "my_account_r_m" );
-        condition2.setType("parameter");
-        condition2.setOperator("notequal");
-        condition2.setValue( "^.+$" );
-
-        this.rules = new ArrayList<Rule>();
-
-        if(frontEnd) {
-
-            this.addRule("oauth-rule" + this.rules.size(), "^/dotCMS/login.*$",
-                    "/app" + OAUTH_URL, condition1, condition2);
-        }
-
-        if(backEnd) {
-
-            this.backEndLoginInterceptor = new BackEndLoginRequiredOAuthInterceptor();
-            FilterWebInterceptorProvider.getInstance(Config.CONTEXT)
-                    .getDelegate(LoginRequiredFilter.class).addFirst(this.backEndLoginInterceptor);
-        }
-    }
-
-    private void addRule (final String name, final String from,
-                          final String to, final Condition condition1,
-                          final Condition condition2) throws Exception {
-
-        final NormalRule rule = new NormalRule();
-
-        Logger.info(this.getClass(), MessageFormat.format(
-                "Adding rule Name= {0}, From= {1}, To = {2}", name, from, to));
-        rule.setName(name);
-        rule.setFrom(from);
-        rule.setTo  (to);
-        rule.setToType("redirect");
-        rule.addCondition(condition1);
-        rule.addCondition(condition2);
-        this.addRewriteRule(rule);
-        this.rules.add(rule);
-    } // addRule.
-
+    @Override
     public void stop(BundleContext context) throws Exception {
-        //Unregister the servlet
-        if ( httpService != null && servlet != null ) {
-            httpService.unregisterServlet( servlet );
+
+        unregisterServices(context);
+
+        final FilterWebInterceptorProvider filterWebInterceptorProvider = FilterWebInterceptorProvider
+                .getInstance(Config.CONTEXT);
+
+        // Cleaning up the interceptors
+
+        if (null != this.loginRequiredOAuthInterceptor) {
+            final WebInterceptorDelegate loginRequiredDelegate = filterWebInterceptorProvider
+                    .getDelegate(LoginRequiredFilter.class);
+
+            if (null != loginRequiredDelegate) {
+                System.out.println("Removing the BackEndLoginRequiredOAuthInterceptor");
+                loginRequiredDelegate.remove(LoginRequiredOAuthInterceptor.class.getName(), true);
+            }
         }
 
-        Logger.info(this.getClass(), "Removing OSGi OAuth Servlet");
+        if (null != this.autoLoginOAuthInterceptor) {
+            final WebInterceptorDelegate autoLoginDelegate = filterWebInterceptorProvider
+                    .getDelegate(AutoLoginFilter.class);
 
-        for(Rule rule : rules){
-
-            DotUrlRewriteFilter.getUrlRewriteFilter().removeRule(rule);
+            if (null != autoLoginDelegate) {
+                System.out.println("Removing the OAuth2Interceptor");
+                autoLoginDelegate.remove(AutoLoginOAuthInterceptor.class.getName(), true);
+            }
         }
 
-        if (null != this.backEndLoginInterceptor) {
-            FilterWebInterceptorProvider.getInstance(Config.CONTEXT)
-                    .getDelegate(LoginRequiredFilter.class).remove(this.backEndLoginInterceptor.getName(), true);
+        if (null != this.logoutOAuthInterceptor) {
+            final WebInterceptorDelegate autoLoginDelegate = filterWebInterceptorProvider
+                    .getDelegate(AutoLoginFilter.class);
+
+            if (null != autoLoginDelegate) {
+                System.out.println("Removing the LogoutOAuthInterceptor");
+                autoLoginDelegate.remove(LogoutOAuthInterceptor.class.getName(), true);
+            }
         }
-
-        unregisterViewToolServices();
-
-        Logger.info(this.getClass(), "We now have " + DotUrlRewriteFilter.getUrlRewriteFilter().getRules().size() + " rules");
 
         //Shutting down log4j in order to avoid memory leaks
         Log4jUtil.shutdown(pluginLoggerContext);
-
-        CMSFilter.removeExclude( "/app" + OAUTH_URL  );
-
-        //Unpublish bundle services
-        unregisterServices( context );
-
     }
 
-    /**
-     * This interceptor is used for handle the OAuth login check on DotCMS BE.
-     * @author jsanca
-     */
-    public class BackEndLoginRequiredOAuthInterceptor implements WebInterceptor {
-
-
-        public static final String NAME = "BackEndLoginRequiredOAuthInterceptor4_1";
-
-        @Override
-        public String getName() {
-            return NAME;
-        }
-
-        /**
-         * This login required will be used for the BE, when the user is on BE, is not logged in and
-         * the by pass native=true is not in the query string will redirect to the OAUTH Servlet in order to do
-         * the authentication with OAUTH
-         */
-        @Override
-        public Result intercept(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
-
-            final HttpSession session = request.getSession(false);
-            final boolean isAdmin = request.getRequestURI().startsWith("/dotAdmin");
-            Result result  = Result.NEXT;
-
-            // if we are not logged in, is a admin request and not native by pass, go to login page
-            if ( isAdmin && !Activator.this.loginServiceAPI.isLoggedIn(request) &&
-                    !Boolean.TRUE.toString().equalsIgnoreCase(request.getParameter(NATIVE))) {
-
-                Logger.warn(this.getClass(),
-                        "Doing Login Check for RequestURI: " +
-                                request.getRequestURI() + "?" + request.getQueryString());
-
-                response.sendRedirect("/app" + OAUTH_URL + "?referrer=/dotAdmin");
-                result = Result.SKIP_NO_CHAIN; // needs to stop the filter chain.
-            }
-
-            return result; // if it is log in, continue!
-        } // intercept.
-    } // BackEndLoginRequiredOAuthInterceptor.
 }
