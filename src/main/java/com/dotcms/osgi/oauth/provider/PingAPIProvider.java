@@ -2,7 +2,7 @@ package com.dotcms.osgi.oauth.provider;
 
 import static com.dotcms.osgi.oauth.util.OAuthPropertyBundle.getProperty;
 
-import com.dotcms.osgi.oauth.OauthUtils;
+import com.dotcms.osgi.oauth.util.OauthUtils;
 import com.dotcms.osgi.oauth.service.DotService;
 import com.dotmarketing.util.Logger;
 import com.dotmarketing.util.json.JSONException;

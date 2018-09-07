@@ -7,24 +7,24 @@
  */
 package com.dotcms.osgi.oauth.interceptor;
 
-import static com.dotcms.osgi.oauth.OauthUtils.CALLBACK_URL;
-import static com.dotcms.osgi.oauth.OauthUtils.FEMALE;
-import static com.dotcms.osgi.oauth.OauthUtils.GENDER;
-import static com.dotcms.osgi.oauth.OauthUtils.OAUTH_API_PROVIDER;
-import static com.dotcms.osgi.oauth.OauthUtils.OAUTH_PROVIDER;
-import static com.dotcms.osgi.oauth.OauthUtils.OAUTH_REDIRECT;
-import static com.dotcms.osgi.oauth.OauthUtils.OAUTH_SERVICE;
-import static com.dotcms.osgi.oauth.OauthUtils.REMEMBER_ME;
-import static com.dotcms.osgi.oauth.OauthUtils.ROLES_TO_ADD;
 import static com.dotcms.osgi.oauth.util.OAuthPropertyBundle.getProperty;
+import static com.dotcms.osgi.oauth.util.OauthUtils.CALLBACK_URL;
+import static com.dotcms.osgi.oauth.util.OauthUtils.FEMALE;
+import static com.dotcms.osgi.oauth.util.OauthUtils.GENDER;
+import static com.dotcms.osgi.oauth.util.OauthUtils.OAUTH_API_PROVIDER;
+import static com.dotcms.osgi.oauth.util.OauthUtils.OAUTH_PROVIDER;
+import static com.dotcms.osgi.oauth.util.OauthUtils.OAUTH_REDIRECT;
+import static com.dotcms.osgi.oauth.util.OauthUtils.OAUTH_SERVICE;
+import static com.dotcms.osgi.oauth.util.OauthUtils.REMEMBER_ME;
+import static com.dotcms.osgi.oauth.util.OauthUtils.ROLES_TO_ADD;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import com.dotcms.enterprise.PasswordFactoryProxy;
 import com.dotcms.enterprise.de.qaware.heimdall.PasswordException;
 import com.dotcms.filters.interceptor.Result;
 import com.dotcms.filters.interceptor.WebInterceptor;
-import com.dotcms.osgi.oauth.OauthUtils;
 import com.dotcms.osgi.oauth.service.DotService;
+import com.dotcms.osgi.oauth.util.OauthUtils;
 import com.dotcms.rendering.velocity.viewtools.JSONTool;
 import com.dotmarketing.business.APILocator;
 import com.dotmarketing.business.Role;
@@ -55,7 +55,7 @@ import org.scribe.model.Verb;
 import org.scribe.model.Verifier;
 import org.scribe.oauth.OAuthService;
 
-public class AutoLoginOAuthInterceptor implements WebInterceptor {
+public class OAuthCallbackInterceptor implements WebInterceptor {
 
     private static final String NAME = "AutoLoginOAuthInterceptor_5_0_1";
     private final String oauthCallBackURL;
@@ -63,7 +63,7 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
     private final boolean isBackEnd;
     private final User systemUser;
 
-    public AutoLoginOAuthInterceptor() throws DotDataException {
+    public OAuthCallbackInterceptor() throws DotDataException {
 
         OauthUtils oauthUtils = OauthUtils.getInstance();
 
@@ -71,6 +71,11 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
         this.isFrontEnd = oauthUtils.forFrontEnd();
         this.isBackEnd = oauthUtils.forBackEnd();
         this.systemUser = APILocator.getUserAPI().getSystemUser();
+    }
+
+    @Override
+    public String[] getFilters() {
+        return new String[]{this.oauthCallBackURL};
     }
 
     @Override
@@ -88,54 +93,46 @@ public class AutoLoginOAuthInterceptor implements WebInterceptor {
 
             final HttpSession session = request.getSession(false);
 
-            boolean requestingAuthentication = false;
-            if (null != this.oauthCallBackURL) {
-                requestingAuthentication = request.getRequestURI().startsWith(oauthCallBackURL);
-            }
+            final String responseCode = request.getParameter(OAuthConstants.CODE);
+            if (null != responseCode) {
 
-            if (requestingAuthentication) {
+                Logger.info(this.getClass(), "Code param found, doing callback");
+                try {
 
-                final String responseCode = request.getParameter(OAuthConstants.CODE);
-                if (null != responseCode) {
+                    final OAuthService oAuthService = (OAuthService) session
+                            .getAttribute(OAUTH_SERVICE);
+                    final DefaultApi20 apiProvider = (DefaultApi20) session
+                            .getAttribute(OAUTH_API_PROVIDER);
 
-                    Logger.info(this.getClass(), "Code param found, doing callback");
-                    try {
+                    final String providerName = apiProvider.getClass().getSimpleName();
+                    final String protectedResourceUrl = getProperty(
+                            providerName + "_PROTECTED_RESOURCE_URL");
+                    final String firstNameProp = getProperty(providerName + "_FIRST_NAME_PROP");
+                    final String lastNameProp = getProperty(providerName + "_LAST_NAME_PROP");
 
-                        final OAuthService oAuthService = (OAuthService) session
-                                .getAttribute(OAUTH_SERVICE);
-                        final DefaultApi20 apiProvider = (DefaultApi20) session
-                                .getAttribute(OAUTH_API_PROVIDER);
+                    //With the authentication code lets try to authenticate to dotCMS
+                    this.authenticate(request, response, oAuthService,
+                            protectedResourceUrl, firstNameProp, lastNameProp);
 
-                        final String providerName = apiProvider.getClass().getSimpleName();
-                        final String protectedResourceUrl = getProperty(
-                                providerName + "_PROTECTED_RESOURCE_URL");
-                        final String firstNameProp = getProperty(providerName + "_FIRST_NAME_PROP");
-                        final String lastNameProp = getProperty(providerName + "_LAST_NAME_PROP");
+                    // redirect onward!
+                    final String authorizationUrl = (String) session
+                            .getAttribute(OAUTH_REDIRECT);
 
-                        //With the authentication code lets try to authenticate to dotCMS
-                        this.authenticate(request, response, oAuthService,
-                                protectedResourceUrl, firstNameProp, lastNameProp);
-
-                        // redirect onward!
-                        final String authorizationUrl = (String) session
-                                .getAttribute(OAUTH_REDIRECT);
-
-                        if (authorizationUrl == null) {
-                            this.alreadyLoggedIn(response);
-                        } else {
-                            session.removeAttribute(OAUTH_REDIRECT);
-                            session.removeAttribute(OAUTH_SERVICE);
-                            session.removeAttribute(OAUTH_API_PROVIDER);
-                            session.setAttribute(OAUTH_PROVIDER,
-                                    apiProvider.getClass().getCanonicalName());
-                            response.sendRedirect(authorizationUrl);
-                            result = Result.SKIP_NO_CHAIN; // needs to stop the filter chain.
-                        }
-                    } catch (Exception e) {
-                        Logger.error(this, e.getMessage(), e);
+                    if (authorizationUrl == null) {
+                        this.alreadyLoggedIn(response);
+                    } else {
+                        session.removeAttribute(OAUTH_REDIRECT);
+                        session.removeAttribute(OAUTH_SERVICE);
+                        session.removeAttribute(OAUTH_API_PROVIDER);
+                        session.setAttribute(OAUTH_PROVIDER,
+                                apiProvider.getClass().getCanonicalName());
+                        response.sendRedirect(authorizationUrl);
+                        result = Result.SKIP_NO_CHAIN; // needs to stop the filter chain.
                     }
-
+                } catch (Exception e) {
+                    Logger.error(this, e.getMessage(), e);
                 }
+
             }
         }
 

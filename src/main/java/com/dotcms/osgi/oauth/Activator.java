@@ -2,7 +2,7 @@ package com.dotcms.osgi.oauth;
 
 import com.dotcms.filters.interceptor.FilterWebInterceptorProvider;
 import com.dotcms.filters.interceptor.WebInterceptorDelegate;
-import com.dotcms.osgi.oauth.interceptor.AutoLoginOAuthInterceptor;
+import com.dotcms.osgi.oauth.interceptor.OAuthCallbackInterceptor;
 import com.dotcms.osgi.oauth.interceptor.LoginRequiredOAuthInterceptor;
 import com.dotcms.osgi.oauth.interceptor.LogoutOAuthInterceptor;
 import com.dotcms.osgi.oauth.viewtool.OAuthToolInfo;
@@ -19,7 +19,7 @@ import org.osgi.framework.BundleContext;
 public class Activator extends GenericBundleActivator {
 
     private LoginRequiredOAuthInterceptor loginRequiredOAuthInterceptor;
-    private AutoLoginOAuthInterceptor autoLoginOAuthInterceptor;
+    private OAuthCallbackInterceptor oAuthCallbackInterceptor;
     private LogoutOAuthInterceptor logoutOAuthInterceptor;
 
     private LoggerContext pluginLoggerContext;
@@ -60,9 +60,9 @@ public class Activator extends GenericBundleActivator {
             this.logoutOAuthInterceptor = new LogoutOAuthInterceptor();
             autoLoginDelegate.addFirst(this.logoutOAuthInterceptor);
 
-            System.out.println("Adding the OAuth2Interceptor");
-            this.autoLoginOAuthInterceptor = new AutoLoginOAuthInterceptor();
-            autoLoginDelegate.addFirst(this.autoLoginOAuthInterceptor);
+            System.out.println("Adding the OAuthCallbackInterceptor");
+            this.oAuthCallbackInterceptor = new OAuthCallbackInterceptor();
+            autoLoginDelegate.addFirst(this.oAuthCallbackInterceptor);
         }
 
     }
@@ -82,18 +82,18 @@ public class Activator extends GenericBundleActivator {
                     .getDelegate(LoginRequiredFilter.class);
 
             if (null != loginRequiredDelegate) {
-                System.out.println("Removing the BackEndLoginRequiredOAuthInterceptor");
+                System.out.println("Removing the LoginRequiredOAuthInterceptor");
                 loginRequiredDelegate.remove(LoginRequiredOAuthInterceptor.class.getName(), true);
             }
         }
 
-        if (null != this.autoLoginOAuthInterceptor) {
+        if (null != this.oAuthCallbackInterceptor) {
             final WebInterceptorDelegate autoLoginDelegate = filterWebInterceptorProvider
                     .getDelegate(AutoLoginFilter.class);
 
             if (null != autoLoginDelegate) {
-                System.out.println("Removing the OAuth2Interceptor");
-                autoLoginDelegate.remove(AutoLoginOAuthInterceptor.class.getName(), true);
+                System.out.println("Removing the OAuthCallbackInterceptor");
+                autoLoginDelegate.remove(OAuthCallbackInterceptor.class.getName(), true);
             }
         }
 

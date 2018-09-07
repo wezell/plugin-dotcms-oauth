@@ -1,8 +1,7 @@
-package com.dotcms.osgi.oauth;
+package com.dotcms.osgi.oauth.util;
 
 import static com.dotcms.osgi.oauth.util.OAuthPropertyBundle.getProperty;
 
-import com.dotcms.osgi.oauth.util.OAuthPropertyBundle;
 import com.dotcms.rendering.velocity.viewtools.JSONTool;
 import com.dotmarketing.util.Logger;
 import com.dotmarketing.util.json.JSONObject;

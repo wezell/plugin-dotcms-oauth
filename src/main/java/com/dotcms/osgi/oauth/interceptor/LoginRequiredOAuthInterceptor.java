@@ -1,17 +1,17 @@
 package com.dotcms.osgi.oauth.interceptor;
 
-import static com.dotcms.osgi.oauth.OauthUtils.CALLBACK_URL;
-import static com.dotcms.osgi.oauth.OauthUtils.JAVAX_SERVLET_FORWARD_REQUEST_URI;
-import static com.dotcms.osgi.oauth.OauthUtils.NATIVE;
-import static com.dotcms.osgi.oauth.OauthUtils.OAUTH_API_PROVIDER;
-import static com.dotcms.osgi.oauth.OauthUtils.OAUTH_REDIRECT;
-import static com.dotcms.osgi.oauth.OauthUtils.OAUTH_SERVICE;
-import static com.dotcms.osgi.oauth.OauthUtils.REFERRER;
 import static com.dotcms.osgi.oauth.util.OAuthPropertyBundle.getProperty;
+import static com.dotcms.osgi.oauth.util.OauthUtils.CALLBACK_URL;
+import static com.dotcms.osgi.oauth.util.OauthUtils.JAVAX_SERVLET_FORWARD_REQUEST_URI;
+import static com.dotcms.osgi.oauth.util.OauthUtils.NATIVE;
+import static com.dotcms.osgi.oauth.util.OauthUtils.OAUTH_API_PROVIDER;
+import static com.dotcms.osgi.oauth.util.OauthUtils.OAUTH_REDIRECT;
+import static com.dotcms.osgi.oauth.util.OauthUtils.OAUTH_SERVICE;
+import static com.dotcms.osgi.oauth.util.OauthUtils.REFERRER;
 
 import com.dotcms.filters.interceptor.Result;
 import com.dotcms.filters.interceptor.WebInterceptor;
-import com.dotcms.osgi.oauth.OauthUtils;
+import com.dotcms.osgi.oauth.util.OauthUtils;
 import com.dotmarketing.business.APILocator;
 import com.dotmarketing.util.Logger;
 import java.io.IOException;
@@ -33,7 +33,7 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
     private static final String NAME = "LoginRequiredOAuthInterceptor_5_0_1";
 
     private static final String[] BACK_END_URLS =
-            new String[]{"/api", "/dotAdmin", "/dwr", "/c/"};
+            new String[]{"/dotAdmin", "/dwr", "/c/"};
     private static final String[] BACK_END_URLS_TO_ALLOW =
             new String[]{".bundle.", "/appconfiguration",
                     "/authentication", ".chunk.", "/loginform",
@@ -58,6 +58,19 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
     }
 
     @Override
+    public String[] getFilters() {
+        //Verify if a protected page was requested and we need to request a login
+        String[] urlsToVerify = new String[]{};
+        if (this.isFrontEnd) {
+            urlsToVerify = FRONT_END_URLS;
+        } else if (this.isBackEnd) {
+            urlsToVerify = BACK_END_URLS;
+        }
+
+        return urlsToVerify;
+    }
+
+    @Override
     public String getName() {
         return NAME;
     }
@@ -78,23 +91,7 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
         if (!isLoggedInUser) {
 
             final HttpSession session = request.getSession(false);
-
-            //Verify if a protected page was requested and we need to request a login
-            String[] urlsToVerify = new String[]{};
-            if (this.isFrontEnd) {
-                urlsToVerify = FRONT_END_URLS;
-            } else if (this.isBackEnd) {
-                urlsToVerify = BACK_END_URLS;
-            }
-
             final String requestedURI = request.getRequestURI();
-            boolean requestingAuthentication = false;
-            for (final String toCheck : urlsToVerify) {
-                if (requestedURI.startsWith(toCheck)) {
-                    requestingAuthentication = true;
-                    break;
-                }
-            }
 
             //Should we use regular login?, we need to allow some urls in order to load the admin page
             boolean isNative = true;
@@ -111,7 +108,7 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
                 }
             }
 
-            if (requestingAuthentication && !isNative) {
+            if (!isNative) {
 
                 //Look for the provider to use
                 DefaultApi20 apiProvider = this.oauthUtils.getAPIProvider(request, session);
