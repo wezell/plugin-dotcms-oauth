@@ -17,9 +17,10 @@ public class OAuthTool implements ViewTool {
 
 		java.util.List<String> providers = new ArrayList<>();
 
-		String google = OAuthPropertyBundle.getProperty("Google2Api_API_KEY", NOTSET);
-		String facebook = OAuthPropertyBundle.getProperty("FacebookApi_API_KEY", NOTSET);
-		String okta = OAuthPropertyBundle.getProperty("OktaApi20_API_KEY", NOTSET);
+		String google = OAuthPropertyBundle.getProperty("Google20Api_API_KEY", NOTSET);
+		String facebook = OAuthPropertyBundle.getProperty("Facebook20Api_API_KEY", NOTSET);
+		String okta = OAuthPropertyBundle.getProperty("Okta20Api_API_KEY", NOTSET);
+		String ping = OAuthPropertyBundle.getProperty("Ping20Api_API_KEY", NOTSET);
 
 		if(!NOTSET.equals(google)){
 			providers.add(google);
@@ -31,6 +32,10 @@ public class OAuthTool implements ViewTool {
 
 		if (!NOTSET.equals(okta)) {
 			providers.add(okta);
+		}
+
+		if (!NOTSET.equals(ping)) {
+			providers.add(ping);
 		}
 
 		return providers;

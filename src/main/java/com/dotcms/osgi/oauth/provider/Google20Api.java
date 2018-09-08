@@ -19,7 +19,7 @@ import org.scribe.utils.OAuthEncoder;
  *
  * @author yincrash
  */
-public class Google2Api extends DefaultApi20 {
+public class Google20Api extends DefaultApi20 {
 
     private static final String AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/auth?response_type=code&client_id=%s&redirect_uri=%s";
     private static final String SCOPED_AUTHORIZE_URL = AUTHORIZE_URL + "&scope=%s";

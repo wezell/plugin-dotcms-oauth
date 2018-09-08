@@ -28,11 +28,11 @@ import org.scribe.oauth.OAuthService;
 /**
  * @author Jonathan Gamba 8/24/18
  */
-public class OktaApi20 extends DefaultApi20 implements DotProvider {
+public class Okta20Api extends DefaultApi20 implements DotProvider {
 
     private final String state;
 
-    public OktaApi20() {
+    public Okta20Api() {
         this.state = "state_" + new Random().nextInt(999_999);
     }
 
@@ -136,13 +136,13 @@ public class OktaApi20 extends DefaultApi20 implements DotProvider {
 
     private class Okta20Service extends OAuth20ServiceImpl implements DotService {
 
-        OktaApi20 api;
+        Okta20Api api;
         OAuthConfig config;
 
         Okta20Service(DefaultApi20 api, OAuthConfig config) {
             super(api, config);
 
-            this.api = (OktaApi20) api;
+            this.api = (Okta20Api) api;
             this.config = config;
         }
 

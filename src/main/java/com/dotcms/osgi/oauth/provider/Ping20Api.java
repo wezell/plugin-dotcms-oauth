@@ -31,11 +31,11 @@ import org.scribe.oauth.OAuthService;
  *
  * @author Jonathan Gamba 8/28/18
  */
-public class PingAPIProvider extends DefaultApi20 implements DotProvider {
+public class Ping20Api extends DefaultApi20 implements DotProvider {
 
     private final String state;
 
-    public PingAPIProvider() {
+    public Ping20Api() {
         this.state = "state_" + new Random().nextInt(999_999);
     }
 
@@ -122,12 +122,12 @@ public class PingAPIProvider extends DefaultApi20 implements DotProvider {
 
     private class PingService extends OAuth20ServiceImpl implements DotService {
 
-        PingAPIProvider api;
+        Ping20Api api;
         OAuthConfig config;
 
         PingService(DefaultApi20 api, OAuthConfig config) {
             super(api, config);
-            this.api = (PingAPIProvider) api;
+            this.api = (Ping20Api) api;
             this.config = config;
         }
 
