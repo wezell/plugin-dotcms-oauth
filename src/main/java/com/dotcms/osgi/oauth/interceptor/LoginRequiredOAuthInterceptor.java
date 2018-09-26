@@ -33,13 +33,13 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
     private static final String NAME = "LoginRequiredOAuthInterceptor_5_0_1";
 
     private static final String[] BACK_END_URLS =
-            new String[]{"/dotAdmin", "/dwr", "/c/"};
+            new String[]{"/dotadmin", "/dwr", "/c/"};
     private static final String[] BACK_END_URLS_TO_ALLOW =
             new String[]{".bundle.", "/appconfiguration",
                     "/authentication", ".chunk.", "/loginform",
                     ".woff", ".ttf", "/logout"};
     private static final String[] FRONT_END_URLS =
-            new String[]{"/dotCMS/login"};
+            new String[]{"/dotcms/login"};
 
     private static final Token EMPTY_TOKEN = null;
 

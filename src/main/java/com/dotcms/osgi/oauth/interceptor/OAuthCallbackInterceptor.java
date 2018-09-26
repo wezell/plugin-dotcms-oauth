@@ -67,7 +67,7 @@ public class OAuthCallbackInterceptor implements WebInterceptor {
 
         OauthUtils oauthUtils = OauthUtils.getInstance();
 
-        this.oauthCallBackURL = getProperty(CALLBACK_URL);
+        this.oauthCallBackURL = getProperty(CALLBACK_URL).toLowerCase();
         this.isFrontEnd = oauthUtils.forFrontEnd();
         this.isBackEnd = oauthUtils.forBackEnd();
         this.systemUser = APILocator.getUserAPI().getSystemUser();

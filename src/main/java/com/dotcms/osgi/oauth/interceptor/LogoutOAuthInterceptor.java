@@ -38,7 +38,7 @@ public class LogoutOAuthInterceptor implements WebInterceptor {
 
     @Override
     public String[] getFilters() {
-        return new String[]{"/api/v1/logout", "/dotCMS/logout"};
+        return new String[]{"/api/v1/logout", "/dotcms/logout"};
     }
 
     @Override
