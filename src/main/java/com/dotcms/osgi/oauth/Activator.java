@@ -2,10 +2,12 @@ package com.dotcms.osgi.oauth;
 
 import com.dotcms.filters.interceptor.FilterWebInterceptorProvider;
 import com.dotcms.filters.interceptor.WebInterceptorDelegate;
-import com.dotcms.osgi.oauth.interceptor.OAuthCallbackInterceptor;
 import com.dotcms.osgi.oauth.interceptor.LoginRequiredOAuthInterceptor;
 import com.dotcms.osgi.oauth.interceptor.LogoutOAuthInterceptor;
+import com.dotcms.osgi.oauth.interceptor.OAuthCallbackInterceptor;
+import com.dotcms.osgi.oauth.rest.JsonWebTokenResource;
 import com.dotcms.osgi.oauth.viewtool.OAuthToolInfo;
+import com.dotcms.rest.config.RestServiceUtil;
 import com.dotmarketing.filters.AutoLoginFilter;
 import com.dotmarketing.filters.LoginRequiredFilter;
 import com.dotmarketing.loggers.Log4jUtil;
@@ -17,6 +19,8 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.osgi.framework.BundleContext;
 
 public class Activator extends GenericBundleActivator {
+
+    private Class jsonWebTokenResource = JsonWebTokenResource.class;
 
     private LoginRequiredOAuthInterceptor loginRequiredOAuthInterceptor;
     private OAuthCallbackInterceptor oAuthCallbackInterceptor;
@@ -65,6 +69,9 @@ public class Activator extends GenericBundleActivator {
             autoLoginDelegate.addFirst(this.oAuthCallbackInterceptor);
         }
 
+        Logger.info(this.getClass(),
+                "Adding new Restful Service: " + jsonWebTokenResource.getSimpleName());
+        RestServiceUtil.addResource(jsonWebTokenResource);
     }
 
     @Override
@@ -106,6 +113,10 @@ public class Activator extends GenericBundleActivator {
                 autoLoginDelegate.remove(LogoutOAuthInterceptor.class.getName(), true);
             }
         }
+
+        Logger.info(this.getClass(),
+                "Removing new Restful Service: " + jsonWebTokenResource.getSimpleName());
+        RestServiceUtil.removeResource(jsonWebTokenResource);
 
         //Shutting down log4j in order to avoid memory leaks
         Log4jUtil.shutdown(pluginLoggerContext);

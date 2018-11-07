@@ -32,12 +32,14 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
 
     private static final String NAME = "LoginRequiredOAuthInterceptor_5_0_1";
 
+    // All paths needs to be in lower case as the URI is lowercase before to be evaluated
     private static final String[] BACK_END_URLS =
             new String[]{"/dotadmin", "/dwr", "/c/"};
-    private static final String[] BACK_END_URLS_TO_ALLOW =
+    private static final String[] URLS_TO_ALLOW =
             new String[]{".bundle.", "/appconfiguration",
                     "/authentication", ".chunk.", "/loginform",
-                    ".woff", ".ttf", "/logout"};
+                    ".woff", ".ttf", "/logout", "/dotadmin/assets/icon/"};
+    // All paths needs to be in lower case as the URI is lowercase before to be evaluated
     private static final String[] FRONT_END_URLS =
             new String[]{"/dotcms/login"};
 
@@ -86,27 +88,30 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
 
         Result result = Result.NEXT;
 
-        //If we already have an user we can continue
-        boolean isLoggedInUser = APILocator.getLoginServiceAPI().isLoggedIn(request);
-        if (!isLoggedInUser) {
+        final String requestedURI = request.getRequestURI();
 
-            final HttpSession session = request.getSession(false);
-            final String requestedURI = request.getRequestURI();
+        boolean requiresAuthentication = true;
 
-            //Should we use regular login?, we need to allow some urls in order to load the admin page
-            boolean isNative = true;
-            if (!Boolean.TRUE.toString()
-                    .equalsIgnoreCase(request.getParameter(NATIVE))) {
+        //Verify if the requested url requires authentication
+        if (null != requestedURI) {
+            for (final String allowedSubPath : URLS_TO_ALLOW) {
 
-                isNative = false;
-
-                for (final String toCheck : BACK_END_URLS_TO_ALLOW) {
-                    if (requestedURI.contains(toCheck)) {
-                        isNative = true;//Allow to continue without authentication
-                        break;
-                    }
+                if (requestedURI.toLowerCase().contains(allowedSubPath.toLowerCase())) {
+                    requiresAuthentication = false;
+                    break;
                 }
             }
+        }
+
+        //If we already have an user we can continue
+        boolean isLoggedInUser = APILocator.getLoginServiceAPI().isLoggedIn(request);
+        if (!isLoggedInUser && requiresAuthentication) {
+
+            final HttpSession session = request.getSession(false);
+
+            //Should we use regular login?, we need to allow some urls in order to load the admin page
+            boolean isNative = Boolean.TRUE.toString()
+                    .equalsIgnoreCase(request.getParameter(NATIVE));
 
             if (!isNative) {
 

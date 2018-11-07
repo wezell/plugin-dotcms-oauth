@@ -116,6 +116,21 @@ Ping20Api_FIRST_NAME_PROP=given_name
 Ping20Api_LAST_NAME_PROP=family_name
 ```
 
+## RESTful end points
+
+### com.dotcms.osgi.oauth.rest.JsonWebTokenResource
+End point that allows to use an Oauth2 token to authenticate with dotCMS and to return a dotCMS token
+
+```
+curl -v -XPOST http://localhost:8080/api/v1/authentication/token \
+-H "Content-Type:application/json" \
+-d '{
+    "oauthToken":"eyJhbGciOiJSUzI1NiIsImtpZCI6ImsxIn0.eyJzY29wZSI6WyJvcGVuaWQiLCJlbWFpbCIsInByb2ZpbGUiLCJjbXMiXSwiY2xpZW50X2lkX25hbWUiOiJkb3RjbXMiLCJzdWIiOiJwcmFzYW5uYSIsIk9yZ05hbWUiOiJCbGFoIiwiVXNlcm5hbWUiOiJwcmFzYW5uYSIsImhvdXNlIjoiQ01TIEFkbWluaXN0cmF0b3IiLCJlbWFpbCI6InVzZXIuMzc2QGV4YW1wbGUuY29tIiwiZXhwIjoxNTM5MjE3MzYzfQ.LuIWdade2G7_87BNPFzb7ZaZqaq0gV_a6-S316rjEmmcKH67nCmpcH9TXEdPIUkOsD7rDb8AQ8n6c9DgCcxg4QRJTkDQ53dDY4V0nxGJuBD-xCE4gmIQPmLDQ1lXNKWNvy_7X8DB4wiJxwnRA7J8qVAzitavWBPURXOCB_EtR9KL2_E8rkRDO6q7i906KAkjfmQh7cfY3_flgRbyv9igEv8PNh7N3KjX_f5o-BJ3-Ak86K-yenVDzmgdQWZeXIN_7HAn5BvK6eWAK_4bltbJzB-mZOxzhuIisoqFtgmbhC2Pq7cB1AS8bbGxMu65LIhZt7Z5zVxTpRN9O456LX9NKA",
+    "oauthProvider":"com.dotcms.osgi.oauth.provider.Google20Api",
+    "expirationDays": 10 
+}'
+```
+
 ---
 ---
 # How to build this example
