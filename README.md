@@ -10,10 +10,11 @@ For reference:
 * https://developer.okta.com/authentication-guide/
 * https://www.pingidentity.com/content/developer/en/resources/oauth-2-0-developers-guide.html
  
-### 
-Under the covers, this plugin uses the very handy Scribe library to shape the the Auth Implementataions.  You can see the some of the providers that it supports.  These implementations should be supportable by this plugin but they will need some work.
+### About the Implementaion
+Under the covers, this plugin uses the very handy Scribe library to provide the the OAuth implementataions.  You can see the some of the providers that it supports.  These implementations should be supportable by this plugin but they will need some work.
 
 https://github.com/scribejava/scribejava/tree/master/scribejava-apis/src/main/java/com/github/scribejava/apis
+
 ---
 
 # Plugin Components
