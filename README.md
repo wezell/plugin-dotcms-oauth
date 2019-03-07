@@ -1,4 +1,4 @@
-# plugins-dotcms-oauth
+# OAuth 2 / Open Id Connect Auth
 
 This is an osgi plugin that provides an example of single sign-on using OAuth2.  This intended to be a drop in replacement for the standard dotcms login, both for front end users and for backend users and effectively disables the out of the box authentication.  This plugin is provided as a code example and should not be used in a production environment without careful understanding of what the code does.
 
@@ -10,8 +10,12 @@ For reference:
 * https://developer.okta.com/authentication-guide/
 * https://www.pingidentity.com/content/developer/en/resources/oauth-2-0-developers-guide.html
  
+### 
+Under the covers, this plugin uses the very handy Scribe library to shape the the Auth Implementataions.  You can see the some of the providers that it supports.  These implementations should be supportable by this plugin but they will need some work.
+
+https://github.com/scribejava/scribejava/tree/master/scribejava-apis/src/main/java/com/github/scribejava/apis
 ---
---- 
+
 # Plugin Components
 
 ## Interceptors
