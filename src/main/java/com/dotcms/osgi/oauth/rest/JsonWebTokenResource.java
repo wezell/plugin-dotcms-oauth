@@ -10,12 +10,12 @@ import com.dotcms.auth.providers.jwt.JsonWebTokenUtils;
 import com.dotcms.cms.login.LoginServiceAPI;
 import com.dotcms.osgi.oauth.util.OauthUtils;
 import com.dotcms.repackage.com.google.common.annotations.VisibleForTesting;
-import com.dotcms.repackage.javax.ws.rs.POST;
-import com.dotcms.repackage.javax.ws.rs.Path;
-import com.dotcms.repackage.javax.ws.rs.Produces;
-import com.dotcms.repackage.javax.ws.rs.core.Context;
-import com.dotcms.repackage.javax.ws.rs.core.MediaType;
-import com.dotcms.repackage.javax.ws.rs.core.Response;
+import javax.ws.rs.POST;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 import com.dotcms.rest.ErrorEntity;
 import com.dotcms.rest.InitDataObject;
 import com.dotcms.rest.ResponseEntityView;
@@ -303,7 +303,7 @@ public class JsonWebTokenResource implements Serializable {
     private String createJsonWebToken(final User user, final int jwtMaxAge)
             throws PortalException, SystemException {
 
-        return this.jsonWebTokenUtils.createToken(user, jwtMaxAge);
+        return this.jsonWebTokenUtils.createUserToken(user, jwtMaxAge);
     }
 
 }
