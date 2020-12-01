@@ -9,8 +9,6 @@ package com.dotcms.osgi.oauth.interceptor;
 
 import static com.dotcms.osgi.oauth.util.OAuthPropertyBundle.getProperty;
 import static com.dotcms.osgi.oauth.util.OauthUtils.CALLBACK_URL;
-import static com.dotcms.osgi.oauth.util.OauthUtils.FEMALE;
-import static com.dotcms.osgi.oauth.util.OauthUtils.GENDER;
 import static com.dotcms.osgi.oauth.util.OauthUtils.OAUTH_API_PROVIDER;
 import static com.dotcms.osgi.oauth.util.OauthUtils.OAUTH_PROVIDER;
 import static com.dotcms.osgi.oauth.util.OauthUtils.OAUTH_REDIRECT;
@@ -18,29 +16,10 @@ import static com.dotcms.osgi.oauth.util.OauthUtils.OAUTH_SERVICE;
 import static com.dotcms.osgi.oauth.util.OauthUtils.REMEMBER_ME;
 import static com.dotcms.osgi.oauth.util.OauthUtils.ROLES_TO_ADD;
 import static java.nio.charset.StandardCharsets.UTF_8;
-
-import com.dotcms.enterprise.PasswordFactoryProxy;
-import com.dotcms.enterprise.de.qaware.heimdall.PasswordException;
-import com.dotcms.filters.interceptor.Result;
-import com.dotcms.filters.interceptor.WebInterceptor;
-import com.dotcms.osgi.oauth.service.DotService;
-import com.dotcms.osgi.oauth.util.OauthUtils;
-import com.dotcms.rendering.velocity.viewtools.JSONTool;
-import com.dotmarketing.business.APILocator;
-import com.dotmarketing.business.Role;
-import com.dotmarketing.cms.factories.PublicEncryptionFactory;
-import com.dotmarketing.exception.DotDataException;
-import com.dotmarketing.exception.DotSecurityException;
-import com.dotmarketing.util.Logger;
-import com.dotmarketing.util.UUIDGenerator;
-import com.dotmarketing.util.json.JSONException;
-import com.dotmarketing.util.json.JSONObject;
-import com.liferay.portal.auth.PrincipalThreadLocal;
-import com.liferay.portal.model.User;
-import com.liferay.portal.util.WebKeys;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Date;
+import java.util.Map;
 import java.util.StringTokenizer;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -54,6 +33,25 @@ import org.scribe.model.Token;
 import org.scribe.model.Verb;
 import org.scribe.model.Verifier;
 import org.scribe.oauth.OAuthService;
+import com.dotcms.enterprise.PasswordFactoryProxy;
+import com.dotcms.enterprise.de.qaware.heimdall.PasswordException;
+import com.dotcms.filters.interceptor.Result;
+import com.dotcms.filters.interceptor.WebInterceptor;
+import com.dotcms.osgi.oauth.service.DotService;
+import com.dotcms.osgi.oauth.util.JsonUtil;
+import com.dotcms.osgi.oauth.util.OauthUtils;
+import com.dotmarketing.business.APILocator;
+import com.dotmarketing.business.Role;
+import com.dotmarketing.cms.factories.PublicEncryptionFactory;
+import com.dotmarketing.exception.DotDataException;
+import com.dotmarketing.exception.DotSecurityException;
+import com.dotmarketing.util.Logger;
+import com.dotmarketing.util.UUIDGenerator;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.liferay.portal.auth.PrincipalThreadLocal;
+import com.liferay.portal.model.User;
+import com.liferay.portal.util.WebKeys;
 
 public class OAuthCallbackInterceptor implements WebInterceptor {
 
@@ -63,19 +61,19 @@ public class OAuthCallbackInterceptor implements WebInterceptor {
     private final boolean isBackEnd;
     private final User systemUser;
 
-    public OAuthCallbackInterceptor() throws DotDataException {
+    public OAuthCallbackInterceptor()  {
 
         OauthUtils oauthUtils = OauthUtils.getInstance();
 
         this.oauthCallBackURL = getProperty(CALLBACK_URL).toLowerCase();
         this.isFrontEnd = oauthUtils.forFrontEnd();
         this.isBackEnd = oauthUtils.forBackEnd();
-        this.systemUser = APILocator.getUserAPI().getSystemUser();
+        this.systemUser = APILocator.systemUser();
     }
 
     @Override
     public String[] getFilters() {
-        return new String[]{this.oauthCallBackURL};
+        return new String[] {this.oauthCallBackURL};
     }
 
     @Override
@@ -87,36 +85,35 @@ public class OAuthCallbackInterceptor implements WebInterceptor {
     public Result intercept(HttpServletRequest request, HttpServletResponse response) {
         Result result = Result.NEXT;
 
-        //If we already have an user we can continue
+        // If we already have an user we can continue
         boolean isLoggedInUser = APILocator.getLoginServiceAPI().isLoggedIn(request);
         if (!isLoggedInUser) {
 
-            final HttpSession session = request.getSession(false);
+            HttpSession session = request.getSession(true);
 
             final String responseCode = request.getParameter(OAuthConstants.CODE);
             if (null != responseCode) {
 
-                Logger.info(this.getClass(), "Code param found, doing callback");
+                Logger.info(this.getClass().getName(), "Code param found, doing callback");
                 try {
 
-                    final OAuthService oAuthService = (OAuthService) session
-                            .getAttribute(OAUTH_SERVICE);
-                    final DefaultApi20 apiProvider = (DefaultApi20) session
-                            .getAttribute(OAUTH_API_PROVIDER);
+                    final OAuthService oAuthService = (OAuthService) session.getAttribute(OAUTH_SERVICE);
+                    final DefaultApi20 apiProvider = (DefaultApi20) session.getAttribute(OAUTH_API_PROVIDER);
 
                     final String providerName = apiProvider.getClass().getSimpleName();
-                    final String protectedResourceUrl = getProperty(
-                            providerName + "_PROTECTED_RESOURCE_URL");
+                    final String protectedResourceUrl = getProperty(providerName + "_PROTECTED_RESOURCE_URL");
                     final String firstNameProp = getProperty(providerName + "_FIRST_NAME_PROP");
                     final String lastNameProp = getProperty(providerName + "_LAST_NAME_PROP");
 
-                    //With the authentication code lets try to authenticate to dotCMS
-                    this.authenticate(request, response, oAuthService,
-                            protectedResourceUrl, firstNameProp, lastNameProp);
+                    // With the authentication code lets try to authenticate to dotCMS
+                    this.authenticate(request, response, oAuthService, protectedResourceUrl, firstNameProp,
+                                    lastNameProp);
+
+                    session = request.getSession(true);
+
 
                     // redirect onward!
-                    final String authorizationUrl = (String) session
-                            .getAttribute(OAUTH_REDIRECT);
+                    final String authorizationUrl = (String) session.getAttribute(OAUTH_REDIRECT);
 
                     if (authorizationUrl == null) {
                         this.alreadyLoggedIn(response);
@@ -124,13 +121,12 @@ public class OAuthCallbackInterceptor implements WebInterceptor {
                         session.removeAttribute(OAUTH_REDIRECT);
                         session.removeAttribute(OAUTH_SERVICE);
                         session.removeAttribute(OAUTH_API_PROVIDER);
-                        session.setAttribute(OAUTH_PROVIDER,
-                                apiProvider.getClass().getCanonicalName());
+                        session.setAttribute(OAUTH_PROVIDER, apiProvider.getClass().getCanonicalName());
                         response.sendRedirect(authorizationUrl);
                         result = Result.SKIP_NO_CHAIN; // needs to stop the filter chain.
                     }
                 } catch (Exception e) {
-                    Logger.error(this, e.getMessage(), e);
+                    Logger.error(this.getClass().getName(), e.getMessage(), e);
                 }
 
             }
@@ -144,99 +140,92 @@ public class OAuthCallbackInterceptor implements WebInterceptor {
      * updates
      *
      * @return User
+     * @throws JsonProcessingException
+     * @throws JsonMappingException
      */
     private void authenticate(final HttpServletRequest request, final HttpServletResponse response,
-            final OAuthService service, final String protectedResourceUrl,
-            final String firstNameProp, final String lastNameProp)
-            throws DotDataException {
+                    final OAuthService service, final String protectedResourceUrl, final String firstNameProp,
+                    final String lastNameProp) throws DotDataException, JsonMappingException, JsonProcessingException {
 
-        //Request the access token with the authentication code
+        // Request the access token with the authentication code
         final Verifier verifier = new Verifier(request.getParameter("code"));
         final Token accessToken = service.getAccessToken(null, verifier);
-        Logger.info(this.getClass(), "Got the Access Token!");
+        Logger.info(this.getClass().getName(), "Got the Access Token!");
 
-        //Now that we have the token lets try a call to a restricted end point
+        // Now that we have the token lets try a call to a restricted end point
         final OAuthRequest oauthRequest = new OAuthRequest(Verb.GET, protectedResourceUrl);
         service.signRequest(accessToken, oauthRequest);
         final Response protectedCallResponse = oauthRequest.send();
         if (!protectedCallResponse.isSuccessful()) {
-            throw new OAuthException(
-                    String.format("Unable to connect to end point [%s] [%s]",
-                            protectedResourceUrl,
+            throw new OAuthException(String.format("Unable to connect to end point [%s] [%s]", protectedResourceUrl,
                             protectedCallResponse.getMessage()));
         }
 
-        //Parse the response in order to get the user data
-        final JSONObject userJsonResponse = (JSONObject) new JSONTool()
-                .generate(protectedCallResponse.getBody());
+
+        final Map<String, Object> userJsonResponse =
+                        (Map<String, Object>) new JsonUtil().generate(protectedCallResponse.getBody());
+
 
         User user = null;
 
-        //Verify if the user already exist
+        // Verify if the user already exist
         try {
-            Logger.info(this.getClass(), "Loading an user!");
-            final String email = userJsonResponse.getString("email");
-            user = APILocator.getUserAPI()
-                    .loadByUserByEmail(email, this.systemUser, false);
-            Logger.info(this.getClass(), "User loaded!");
+            Logger.info(this.getClass().getName(), "Loading an user!");
+            final String email = (String) userJsonResponse.get("email");
+            final String subject = (String) userJsonResponse.get("sub");
+
+
+            user = APILocator.getUserAPI().loadByUserByEmail(email, this.systemUser, false);
+            Logger.info(this.getClass().getName(), "User loaded!");
         } catch (Exception e) {
-            Logger.warn(this, "No matching user, creating");
+            Logger.warn(this.getClass().getName(), "No matching user, creating");
         }
 
-        //Create the user if does not exist
+        // Create the user if does not exist
         if (user == null) {
             try {
-                Logger.info(this.getClass(), "User not found, creating one!");
-                user = this
-                        .createUser(firstNameProp, lastNameProp, userJsonResponse, this.systemUser);
+                Logger.info(this.getClass().getName(), "User not found, creating one!");
+                user = this.createUser(firstNameProp, lastNameProp, userJsonResponse, this.systemUser);
             } catch (Exception e) {
-                Logger.warn(this, "Error creating user:" + e.getMessage(), e);
+                Logger.warn(this.getClass().getName(), "Error creating user:" + e.getMessage(), e);
                 throw new DotDataException(e.getMessage());
             }
         }
 
         if (user.isActive()) {
 
-            //Set the roles to the user
+            // Set the roles to the user
             setRoles(service, userJsonResponse, user);
 
-            //Authenticate to dotCMS
-            Logger.info(this.getClass(), "Doing login!");
+            // Authenticate to dotCMS
+            Logger.info(this.getClass().getName(), "Doing login!");
             HttpSession httpSession = request.getSession(true);
+            final Object accessTokenObject = httpSession.getAttribute(OAuthConstants.ACCESS_TOKEN);
+            final boolean rememberMe = "true".equalsIgnoreCase(getProperty(REMEMBER_ME, "true"));
+            APILocator.getLoginServiceAPI().doCookieLogin(PublicEncryptionFactory.encryptString(user.getUserId()),
+                            request, response, rememberMe);
 
-            if (this.isFrontEnd) {
-                httpSession.setAttribute(com.dotmarketing.util.WebKeys.CMS_USER, user);
-            }
+            Logger.info(this.getClass().getName(), "Finish back end login!");
+            PrincipalThreadLocal.setName(user.getUserId());
+            httpSession = request.getSession(true);
+            httpSession.setAttribute(WebKeys.USER_ID, user.getUserId());
 
-            if (this.isBackEnd) {
 
-                final boolean rememberMe = "true"
-                        .equalsIgnoreCase(getProperty(REMEMBER_ME, "true"));
-                APILocator.getLoginServiceAPI().doCookieLogin(PublicEncryptionFactory.encryptString
-                        (user.getUserId()), request, response, rememberMe);
-
-                Logger.info(this.getClass(), "Finish back end login!");
-                PrincipalThreadLocal.setName(user.getUserId());
-                httpSession.setAttribute(WebKeys.USER_ID, user.getUserId());
-            }
-
-            //Keep the token in session
+            // Keep the token in session
             httpSession.setAttribute(OAuthConstants.ACCESS_TOKEN, accessToken.getToken());
         }
-    } //authenticate.
+    } // authenticate.
 
-    private void setRoles(final OAuthService service,
-            final JSONObject userJsonResponse,
-            final User user)
-            throws DotDataException {
+    private void setRoles(final OAuthService service, final Map<String, Object> userJsonResponse, final User user)
+                    throws DotDataException {
 
         /*
-        NOTE: We are not creating roles here, the role needs to exist in order to be
-        associated to the user
+         * NOTE: We are not creating roles here, the role needs to exist in order to be associated to the
+         * user
          */
 
-        //First lets handle the roles we need to add from the configuration file
-        Logger.info(this.getClass(), "User is active, adding roles!");
+        // First lets handle the roles we need to add from the configuration file
+        Logger.info(this.getClass().getName(), "User is active, adding roles!");
         final String rolesToAdd = getProperty(ROLES_TO_ADD);
         final StringTokenizer st = new StringTokenizer(rolesToAdd, ",;");
         while (st.hasMoreElements()) {
@@ -244,7 +233,7 @@ public class OAuthCallbackInterceptor implements WebInterceptor {
             this.addRole(user, roleKey);
         }
 
-        //Now from the remote server
+        // Now from the remote server
         Collection<String> remoteRoles;
         if (service instanceof DotService) {
             remoteRoles = ((DotService) service).getGroups(user, userJsonResponse);
@@ -266,33 +255,25 @@ public class OAuthCallbackInterceptor implements WebInterceptor {
         }
     } // addRole.
 
-    private User createUser(final String firstNameProp,
-            final String lastNameProp,
-            final JSONObject json,
-            final User sys)
-            throws JSONException, DotDataException, DotSecurityException, PasswordException {
-
-        final String userId = UUIDGenerator.generateUuid();
-        final String email = new String(json.getString("email").getBytes(), UTF_8);
-        final String lastName = new String(json.getString(lastNameProp).getBytes(), UTF_8);
-        final String firstName = new String(json.getString(firstNameProp).getBytes(), UTF_8);
+    private User createUser(final String firstNameProp, final String lastNameProp,
+                    final Map<String, Object> userJsonResponse, final User sys)
+                    throws DotDataException, DotSecurityException, PasswordException {
+        final String subject = (String) userJsonResponse.get("sub");
+        final String userId = (subject != null) ? subject : UUIDGenerator.generateUuid();
+        final String email = new String(userJsonResponse.get("email").toString().getBytes(), UTF_8);
+        final String lastName = new String(userJsonResponse.get(lastNameProp).toString().getBytes(), UTF_8);
+        final String firstName = new String(userJsonResponse.get(firstNameProp).toString().getBytes(), UTF_8);
 
         final User user = APILocator.getUserAPI().createUser(userId, email);
-
+        user.setNickName(firstName);
         user.setFirstName(firstName);
         user.setLastName(lastName);
         user.setActive(true);
 
         user.setCreateDate(new Date());
-        if (!json.isNull(GENDER)) {
-            user.setFemale(FEMALE.equals(json.getString(GENDER)));
-        }
-        user.setPassword(
-                PasswordFactoryProxy.generateHash(
-                        UUIDGenerator.generateUuid()
-                                + "/"
-                                + UUIDGenerator.generateUuid()
-                ));
+
+        user.setPassword(PasswordFactoryProxy
+                        .generateHash(UUIDGenerator.generateUuid() + "/" + UUIDGenerator.generateUuid()));
         user.setPasswordEncrypted(true);
         APILocator.getUserAPI().save(user, sys, false);
 
@@ -302,9 +283,9 @@ public class OAuthCallbackInterceptor implements WebInterceptor {
     private void alreadyLoggedIn(HttpServletResponse response) throws IOException {
 
         if (this.isBackEnd) {
-            Logger.info(this.getClass(), "Already logged in, redirecting to /dotAdmin");
+            Logger.info(this.getClass().getName(), "Already logged in, redirecting to /dotAdmin");
         } else {
-            Logger.info(this.getClass(), "Already logged in, redirecting home");
+            Logger.info(this.getClass().getName(), "Already logged in, redirecting home");
         }
 
         response.sendRedirect((this.isBackEnd) ? "/dotAdmin" : "/?already-logged-in");

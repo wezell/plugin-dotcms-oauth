@@ -1,17 +1,10 @@
 package com.dotcms.osgi.oauth.provider;
 
 import static com.dotcms.osgi.oauth.util.OAuthPropertyBundle.getProperty;
-
-import com.dotcms.osgi.oauth.util.OauthUtils;
-import com.dotcms.osgi.oauth.service.DotService;
-import com.dotcms.rendering.velocity.viewtools.JSONTool;
-import com.dotmarketing.util.Logger;
-import com.dotmarketing.util.json.JSONArray;
-import com.dotmarketing.util.json.JSONException;
-import com.dotmarketing.util.json.JSONObject;
-import com.liferay.portal.model.User;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import org.scribe.builder.api.DefaultApi20;
 import org.scribe.exceptions.OAuthException;
@@ -24,6 +17,11 @@ import org.scribe.model.Token;
 import org.scribe.model.Verb;
 import org.scribe.oauth.OAuth20ServiceImpl;
 import org.scribe.oauth.OAuthService;
+import com.dotcms.osgi.oauth.service.DotService;
+import com.dotcms.osgi.oauth.util.JsonUtil;
+import com.dotcms.osgi.oauth.util.OauthUtils;
+import com.dotmarketing.util.Logger;
+import com.liferay.portal.model.User;
 
 /**
  * @author Jonathan Gamba 8/24/18
@@ -152,66 +150,60 @@ public class Okta20Api extends DefaultApi20 implements DotProvider {
         }
 
         /**
-         * Custom implementation (extra call) in order to get roles/groups from the Okta server as
-         * the request that returns the user data does not have the user groups.
+         * Custom implementation (extra call) in order to get roles/groups from the Okta server as the
+         * request that returns the user data does not have the user groups.
          */
         @Override
-        public Collection<String> getGroups(User user, final JSONObject userJsonResponse) {
+        public Collection<String> getGroups(User user, final Map<String, Object> userJsonResponse) {
 
             final String providerName = getSimpleName();
             final String groupPrefix = getProperty(providerName + "_GROUP_PREFIX");
             final String organizationURL = getProperty(providerName + "_ORGANIZATION_URL");
             final String apiToken = getProperty(providerName + "_API_TOKEN");
-            final String groupsResourceUrl = String
-                    .format(getProperty(providerName + "_GROUPS_RESOURCE_URL"),
-                            user.getEmailAddress());
+            final String groupsResourceUrl =
+                            String.format(getProperty(providerName + "_GROUPS_RESOURCE_URL"), user.getUserId());
 
-            final OAuthRequest oauthGroupsRequest = new OAuthRequest(Verb.GET,
-                    organizationURL + groupsResourceUrl);
+            final OAuthRequest oauthGroupsRequest = new OAuthRequest(Verb.GET, organizationURL + groupsResourceUrl);
             oauthGroupsRequest.addHeader("Authorization", "SSWS " + apiToken);
             oauthGroupsRequest.addHeader("Content-Type", "application/json");
             oauthGroupsRequest.addHeader("Accept", "application/json");
-
+            
+            final Collection<String> groups = new ArrayList<>();
+            
             final Response groupsCallResponse = oauthGroupsRequest.send();
             if (!groupsCallResponse.isSuccessful()) {
-                throw new OAuthException(
-                        String.format("Unable to connect to end point [%s] [%s]",
-                                groupsResourceUrl,
+                
+                Logger.error(this.getClass().getName(), String.format("Unable to connect to end point [%s] [%s]", groupsResourceUrl,
                                 groupsCallResponse.getMessage()));
+                return groups;
             }
 
-            Collection<String> groups = new ArrayList<>();
+            
             try {
-                //Parse the response in order to get the user data
-                final JSONArray groupsJsonResponse = (JSONArray) new JSONTool()
-                        .generate(groupsCallResponse.getBody());
+                // Parse the response in order to get the user data
+                final List<Map<String, Object>> groupsJsonResponse =
+                                (List<Map<String, Object>>) new JsonUtil().generate(groupsCallResponse.getBody());
 
-                for (int i = 0; i < groupsJsonResponse.length(); i++) {
-                    JSONObject groupJSONData = groupsJsonResponse.getJSONObject(i);
+                groupsJsonResponse.stream().filter(m -> m.containsKey("profile")).forEach(m -> {
+                    final Map<String, Object> profile = (Map<String, Object>) m.get("profile");
+                    final String group = (String) profile.get("name");
+                    if (null != group) {
 
-                    final JSONObject profile = groupJSONData.getJSONObject("profile");
-                    if (null != profile) {
-
-                        final String group = profile.getString("name");
-                        if (null != group) {
-
-                            //Verify if we need to filter by prefix
-                            if (null != groupPrefix && !groupPrefix.isEmpty()) {
-                                if (group.startsWith(groupPrefix)) {
-                                    groups.add(group);
-                                }
-                            } else {
+                        // Verify if we need to filter by prefix
+                        if (null != groupPrefix && !groupPrefix.isEmpty()) {
+                            if (group.startsWith(groupPrefix)) {
                                 groups.add(group);
                             }
+                        } else {
+                            groups.add(group);
                         }
                     }
-                }
-            } catch (JSONException e) {
-                throw new OAuthException(
-                        String.format(
-                                "Unable to get groups in remote authentication server [%s] [%s]",
-                                groupsResourceUrl,
-                                groupsCallResponse.getMessage()), e);
+                });
+
+
+            } catch (Exception e) {
+                throw new OAuthException(String.format("Unable to get groups in remote authentication server [%s] [%s]",
+                                groupsResourceUrl, groupsCallResponse.getMessage()), e);
             }
 
             return groups;

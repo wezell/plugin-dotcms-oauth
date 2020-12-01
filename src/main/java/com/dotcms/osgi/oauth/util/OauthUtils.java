@@ -1,10 +1,7 @@
 package com.dotcms.osgi.oauth.util;
 
 import static com.dotcms.osgi.oauth.util.OAuthPropertyBundle.getProperty;
-
-import com.dotcms.rendering.velocity.viewtools.JSONTool;
-import com.dotmarketing.util.Logger;
-import com.dotmarketing.util.json.JSONObject;
+import java.util.Map;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
 import org.scribe.builder.api.DefaultApi20;
@@ -13,6 +10,7 @@ import org.scribe.model.OAuthConstants;
 import org.scribe.model.Token;
 import org.scribe.utils.OAuthEncoder;
 import org.scribe.utils.Preconditions;
+import com.dotmarketing.util.Logger;
 
 /**
  * @author Jonathan Gamba 8/24/18
@@ -55,32 +53,28 @@ public class OauthUtils {
 
     public boolean forFrontEnd() {
 
-        final String useFor = OAuthPropertyBundle.getProperty("USE_OAUTH_FOR", "")
-                .toLowerCase();
+        final String useFor = OAuthPropertyBundle.getProperty("USE_OAUTH_FOR", "").toLowerCase();
         return useFor.contains("frontend");
     }
 
     public boolean forBackEnd() {
 
-        final String useFor = OAuthPropertyBundle.getProperty("USE_OAUTH_FOR", "")
-                .toLowerCase();
+        final String useFor = OAuthPropertyBundle.getProperty("USE_OAUTH_FOR", "").toLowerCase();
         return useFor.contains("backend");
     }
 
-    public DefaultApi20 getAPIProvider(final HttpServletRequest request,
-            final HttpSession session) {
-        //Look for the provider to use
+    public DefaultApi20 getAPIProvider(final HttpServletRequest request, final HttpSession session) {
+        // Look for the provider to use
         String oauthProvider = getOauthProvider(request, session);
 
         DefaultApi20 apiProvider = null;
         if (null != oauthProvider) {
 
             try {
-                //Initializing the API provider
+                // Initializing the API provider
                 apiProvider = (DefaultApi20) Class.forName(oauthProvider).newInstance();
             } catch (Exception e) {
-                Logger.error(this.getClass(),
-                        String.format("Unable to instantiate API provider [%s] [%s]",
+                Logger.error(this.getClass(), String.format("Unable to instantiate API provider [%s] [%s]",
                                 oauthProvider, e.getMessage()), e);
             }
         }
@@ -88,11 +82,9 @@ public class OauthUtils {
         return apiProvider;
     }
 
-    private synchronized String getOauthProvider(final HttpServletRequest request,
-            final HttpSession session) {
+    private synchronized String getOauthProvider(final HttpServletRequest request, final HttpSession session) {
 
-        String oauthProvider = getProperty(OAUTH_PROVIDER_DEFAULT,
-                "org.scribe.builder.api.FacebookApi");
+        String oauthProvider = getProperty(OAUTH_PROVIDER_DEFAULT, "org.scribe.builder.api.FacebookApi");
 
         if (null != session && null != session.getAttribute(OAUTH_PROVIDER)) {
             oauthProvider = (String) session.getAttribute(OAUTH_PROVIDER);
@@ -110,31 +102,28 @@ public class OauthUtils {
     } // getOauthProvider.
 
     /**
-     * Default method implementation to extract the access token from the request token json
-     * response
+     * Default method implementation to extract the access token from the request token json response
      */
-    public Token extractToken(String response) {
+    public Token extractToken(final String response) {
 
         Preconditions.checkEmptyString(response,
-                "Response body is incorrect. Can't extract a token from an empty string");
+                        "Response body is incorrect. Can't extract a token from an empty string");
 
         try {
-            final JSONObject jsonResponse = (JSONObject) new JSONTool().generate(response);
-            if (jsonResponse.has(OAuthConstants.ACCESS_TOKEN)) {
-                String token = OAuthEncoder
-                        .decode(jsonResponse.get(OAuthConstants.ACCESS_TOKEN).toString());
+
+            Map<String, Object> json = (Map<String, Object>) new JsonUtil().generate(response);
+
+            if (json.containsKey(OAuthConstants.ACCESS_TOKEN)) {
+                String token = OAuthEncoder.decode(json.get(OAuthConstants.ACCESS_TOKEN).toString());
                 return new Token(token, EMPTY_SECRET, response);
             } else {
                 throw new OAuthException(
-                        "Response body is incorrect. Can't extract a token from this: '"
-                                + response
-                                + "'", null);
+                                "Response body is incorrect. Can't extract a token from this: '" + response + "'",
+                                null);
             }
         } catch (Exception e) {
-            throw new OAuthException(
-                    "Response body is incorrect. Can't extract a token from this: '"
-                            + response
-                            + "'", null);
+            throw new OAuthException("Response body is incorrect. Can't extract a token from this: '" + response + "'",
+                            null);
         }
     }
 
