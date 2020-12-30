@@ -11,7 +11,6 @@ import static com.dotcms.osgi.oauth.util.OauthUtils.REFERRER;
 import com.dotcms.filters.interceptor.Result;
 import com.dotcms.filters.interceptor.WebInterceptor;
 import com.dotcms.osgi.oauth.util.OauthUtils;
-import com.dotcms.repackage.bsh.This;
 import com.dotmarketing.business.APILocator;
 import com.dotmarketing.util.Logger;
 import java.io.IOException;
@@ -32,12 +31,12 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
 
     private static final String NAME = "LoginRequiredOAuthInterceptor_5_0_1";
 
-
+    private static final String CMS_NATIVE_LOGIN="CMS_NATIVE_LOGIN_NO_OAUTH";
 
     
     private static final String[] BACK_END_URLS = new String[] {"/html/portal/login,", "/dotAdmin/", "/c/"};
     private static final String[] BACK_END_URLS_TO_ALLOW = new String[] {".bundle.", "/appconfiguration",
-            "/authentication", ".chunk.", "/loginform", ".woff", ".ttf", "/logout"};
+            "/authentication", ".chunk.", "/loginform", ".woff", ".ttf", "/logout", ".js", ".css"};
     private static final String[] FRONT_END_URLS = new String[] {"/dotCMS/login","/application/login/login"};
 
     private static final Token EMPTY_TOKEN = null;
@@ -88,15 +87,19 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
         boolean isLoggedInUser = APILocator.getLoginServiceAPI().isLoggedIn(request);
         if (!isLoggedInUser) {
 
-            final HttpSession session = request.getSession(false);
+
             final String requestedURI = request.getRequestURI();
 
             // Should we use regular login?, we need to allow some urls in order to load the admin page
             boolean isNative = true;
-            if (!Boolean.TRUE.toString().equalsIgnoreCase(request.getParameter(NATIVE))) {
-
+            if (Boolean.TRUE.toString().equalsIgnoreCase(request.getParameter(NATIVE)) ) {
+                if( request.getSession().getAttribute(CMS_NATIVE_LOGIN)==null) {
+                    request.getSession().setAttribute(CMS_NATIVE_LOGIN,CMS_NATIVE_LOGIN);
+                    
+                }
+            }
+            if( request.getSession().getAttribute(CMS_NATIVE_LOGIN)==null) {
                 isNative = false;
-
                 for (final String toCheck : BACK_END_URLS_TO_ALLOW) {
                     if (requestedURI.contains(toCheck)) {
                         isNative = true;// Allow to continue without authentication
@@ -118,7 +121,7 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
             if (!isNative) {
 
                 // Look for the provider to use
-                DefaultApi20 apiProvider = this.oauthUtils.getAPIProvider(request, session);
+                DefaultApi20 apiProvider = this.oauthUtils.getAPIProvider(request, request.getSession());
                 if (null != apiProvider) {
 
                     final String callbackHost = this.getCallbackHost(request);
