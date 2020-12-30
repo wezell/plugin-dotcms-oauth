@@ -17,6 +17,8 @@ import com.dotcms.osgi.oauth.app.AppConfig;
 import com.dotcms.osgi.oauth.service.DotService;
 import com.dotcms.osgi.oauth.util.OauthUtils;
 import com.dotmarketing.business.APILocator;
+import com.liferay.portal.model.User;
+import com.liferay.portal.util.PortalUtil;
 import io.vavr.control.Try;
 
 /**
@@ -40,18 +42,22 @@ public class LogoutOAuthInterceptor implements WebInterceptor {
     public Result intercept(HttpServletRequest request, HttpServletResponse response) throws IOException {
 
 
-        final String requestUrl = request.getRequestURI();
+
         final HttpSession session = request.getSession(false);
         final Optional<AppConfig> config = AppConfig.config(request);
         if (request.getSession(false) == null || !config.isPresent()) {
-            return Result.NEXT;
+            return this.logout(request, response);
         }
+        
+        final User user = PortalUtil.getUser(request);
+        
+        
 
 
         // Check if there is a token to invalidate
         final Object accessTokenObject = session.getAttribute(OAuthConstants.ACCESS_TOKEN);
         if(null == accessTokenObject) {
-            return Result.NEXT;
+            return this.logout(request, response);
         }
     
 
@@ -65,7 +71,7 @@ public class LogoutOAuthInterceptor implements WebInterceptor {
 
             final String providerName = apiProvider.getClass().getSimpleName();
             final String apiKey = config.get().apiKey;
-            final String apiSecret = getProperty(providerName + "_API_SECRET");
+            final String apiSecret =new String(config.get().apiSecret);
 
             final OAuthService service =
                             new ServiceBuilder()
@@ -77,18 +83,25 @@ public class LogoutOAuthInterceptor implements WebInterceptor {
             // Invalidate the token
             if (service instanceof DotService) {
                 ((DotService) service).revokeToken(accessToken);
+               if( ((DotService) service).logout(request, response)) {
+                   return Result.SKIP_NO_CHAIN;
+               }
+                   
             }
 
         } 
-        // Cleaning up the session
-        session.removeAttribute(OAuthConstants.ACCESS_TOKEN);
-        session.removeAttribute(OAUTH_PROVIDER);
-
         
+
+
+
+        return this.logout(request, response);
+    }
+    
+    private Result logout(HttpServletRequest request, HttpServletResponse response) {
         Try.run(() -> APILocator.getLoginServiceAPI().doActionLogout(request, response));
-
-
+        request.getSession().invalidate();
         return Result.NEXT;
     }
+    
 
 }

@@ -79,27 +79,26 @@ public class OAuthCallbackInterceptor implements WebInterceptor {
             final DefaultApi20 apiProvider = (DefaultApi20) request.getSession().getAttribute(OAUTH_API_PROVIDER);
 
             final String providerName = apiProvider.getClass().getSimpleName();
-            final String protectedResourceUrl = getProperty(providerName + "_PROTECTED_RESOURCE_URL");
-            final String firstNameProp = getProperty(providerName + "_FIRST_NAME_PROP");
-            final String lastNameProp = getProperty(providerName + "_LAST_NAME_PROP");
 
             // With the authentication code lets try to authenticate to dotCMS
-            OauthUtils.getInstance().authenticate(request, response, oAuthService, protectedResourceUrl, firstNameProp, lastNameProp);
+            OauthUtils.getInstance().authenticate(request, response, oAuthService);
 
             HttpSession session = request.getSession(true);
 
 
             // redirect onward!
             final String authorizationUrl = (String) session.getAttribute(OAUTH_REDIRECT);
-
-            if (authorizationUrl == null) {
-                return this.redirectLoggedInUser(request, response);
-            }
-
             session.removeAttribute(OAUTH_REDIRECT);
             session.removeAttribute(OAUTH_SERVICE);
-            session.removeAttribute(OAUTH_API_PROVIDER);
             session.setAttribute(OAUTH_PROVIDER, apiProvider.getClass().getCanonicalName());
+            if (authorizationUrl == null) {
+                return this.redirectLoggedInUser(request, response);
+                
+            }
+
+            
+            
+            
             response.sendRedirect(authorizationUrl);
             return Result.SKIP_NO_CHAIN; // needs to stop the filter chain.
 

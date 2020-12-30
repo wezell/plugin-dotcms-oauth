@@ -133,7 +133,7 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
                             .build();
 
             // Send for authorization
-            Logger.info(this.getClass(), "Sending for authorization");
+            Logger.info(this.getClass().getName(), "Sending for authorization");
             sendForAuthorization(request, response, service, apiProvider);
             return Result.SKIP_NO_CHAIN; // needs to stop the filter chain.
         }
@@ -174,7 +174,7 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
         request.getSession().setAttribute(OAUTH_API_PROVIDER, apiProvider);
 
         final String authorizationUrl = service.getAuthorizationUrl(EMPTY_TOKEN);
-        Logger.info(this.getClass(), "Redirecting for authentication to: " + authorizationUrl);
+        Logger.info(this.getClass().getName(), "Redirecting for authentication to: " + authorizationUrl);
         response.sendRedirect(authorizationUrl);
     }
 

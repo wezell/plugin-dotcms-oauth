@@ -2,6 +2,8 @@ package com.dotcms.osgi.oauth.service;
 
 import java.util.Collection;
 import java.util.Map;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import com.liferay.portal.model.User;
 
 /**
@@ -17,5 +19,8 @@ public interface DotService {
     Collection<String> getGroups(User user, final Map<String,Object> userJsonResponse);
 
     default void revokeToken(final String token) {}
+    
+    default boolean logout(HttpServletRequest request, HttpServletResponse response) {return false;}
+    
 
 }

@@ -8,6 +8,7 @@ import java.util.Date;
 import java.util.Map;
 import java.util.Optional;
 import java.util.StringTokenizer;
+import java.util.TreeMap;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
@@ -22,6 +23,7 @@ import org.scribe.model.Verifier;
 import org.scribe.oauth.OAuthService;
 import org.scribe.utils.OAuthEncoder;
 import org.scribe.utils.Preconditions;
+import com.dotcms.business.WrapInTransaction;
 import com.dotcms.enterprise.PasswordFactoryProxy;
 import com.dotcms.enterprise.de.qaware.heimdall.PasswordException;
 import com.dotcms.osgi.oauth.app.AppConfig;
@@ -38,6 +40,7 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.liferay.portal.auth.PrincipalThreadLocal;
 import com.liferay.portal.model.User;
 import com.liferay.portal.util.WebKeys;
+import io.vavr.control.Try;
 
 /**
  * @author Jonathan Gamba 8/24/18
@@ -70,32 +73,15 @@ public class OauthUtils {
                 // Initializing the API provider
                 apiProvider = (DefaultApi20) Class.forName(oauthProvider).newInstance();
             } catch (Exception e) {
-                Logger.warnEveryAndDebug(this.getClass(), String.format("Unable to instantiate API provider [%s] [%s]",
-                                oauthProvider, e.getMessage()), e, 600000);
+                Logger.warn(this.getClass().getName(), String.format("Unable to instantiate API provider [%s] [%s]",
+                                oauthProvider, e.getMessage()));
             }
         }
 
         return Optional.ofNullable(apiProvider);
     }
 
-    private synchronized String getOauthProvider(final HttpServletRequest request, final HttpSession session) {
 
-        String oauthProvider = getProperty(OAUTH_PROVIDER_DEFAULT, "org.scribe.builder.api.FacebookApi");
-
-        if (null != session && null != session.getAttribute(OAUTH_PROVIDER)) {
-            oauthProvider = (String) session.getAttribute(OAUTH_PROVIDER);
-        }
-
-        if (null != request.getParameter(OAUTH_PROVIDER)) {
-            oauthProvider = request.getParameter(OAUTH_PROVIDER);
-        }
-
-        if (null != session) {
-            session.setAttribute(OAUTH_PROVIDER, oauthProvider);
-        }
-
-        return oauthProvider;
-    } // getOauthProvider.
 
     /**
      * Default method implementation to extract the access token from the request token json response
@@ -133,48 +119,50 @@ public class OauthUtils {
      * @throws JsonMappingException
      */
     public void authenticate(final HttpServletRequest request, final HttpServletResponse response,
-                    final OAuthService service, final String protectedResourceUrl, final String firstNameProp,
-                    final String lastNameProp) throws DotDataException, JsonMappingException, JsonProcessingException {
+                    final OAuthService service) throws DotDataException, JsonMappingException, JsonProcessingException {
 
+        final boolean frontEndUser =  request.getSession().getAttribute(Constants.FRONT_END_LOGIN)!=null;
+        AppConfig appConfig = AppConfig.config().get();
+        
+        
         // Request the access token with the authentication code
         final Verifier verifier = new Verifier(request.getParameter("code"));
         final Token accessToken = service.getAccessToken(null, verifier);
         Logger.info(this.getClass().getName(), "Got the Access Token!");
 
         // Now that we have the token lets try a call to a restricted end point
-        final OAuthRequest oauthRequest = new OAuthRequest(Verb.GET, protectedResourceUrl);
+        final OAuthRequest oauthRequest = new OAuthRequest(Verb.GET, appConfig.protectedResource);
         service.signRequest(accessToken, oauthRequest);
         final Response protectedCallResponse = oauthRequest.send();
         if (!protectedCallResponse.isSuccessful()) {
-            throw new OAuthException(String.format("Unable to connect to end point [%s] [%s]", protectedResourceUrl,
+            throw new OAuthException(String.format("Unable to connect to end point [%s] [%s]", appConfig.protectedResource,
                             protectedCallResponse.getMessage()));
         }
 
 
-        final Map<String, Object> userJsonResponse =
-                        (Map<String, Object>) new JsonUtil().generate(protectedCallResponse.getBody());
-
-
+        Map<String, Object> jsonMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        jsonMap.putAll((Map<String, Object>) new JsonUtil().generate(protectedCallResponse.getBody()));
+        
         User user = null;
 
-        // Verify if the user already exist
-        try {
-            Logger.info(this.getClass().getName(), "Loading an user!");
-            final String email = (String) userJsonResponse.get("email");
-            final String subject = (String) userJsonResponse.get("sub");
+        // Verify if the user already exists
+        final String email = (String) getEmail(jsonMap);
+        final String subject = (String) jsonMap.get("sub");
 
-
-            user = APILocator.getUserAPI().loadByUserByEmail(email, APILocator.systemUser(), false);
-            Logger.info(this.getClass().getName(), "User loaded!");
-        } catch (Exception e) {
-            Logger.warn(this.getClass().getName(), "No matching user, creating");
+        Logger.info(this.getClass().getName(), "Loading user by email");
+        user = Try.of( ()-> APILocator.getUserAPI().loadByUserByEmail(email, APILocator.systemUser(), false)).getOrNull();
+        
+        if (user == null) {
+            Logger.info(this.getClass().getName(), "Loading user by id");
+            user = Try.of( ()-> APILocator.getUserAPI().loadUserById(subject)).getOrNull();
         }
+        
 
         // Create the user if does not exist
         if (user == null) {
             try {
                 Logger.info(this.getClass().getName(), "User not found, creating one!");
-                user = this.createUser(firstNameProp, lastNameProp, userJsonResponse, APILocator.systemUser());
+                user = this.createUser(jsonMap);
             } catch (Exception e) {
                 Logger.warn(this.getClass().getName(), "Error creating user:" + e.getMessage(), e);
                 throw new DotDataException(e.getMessage());
@@ -182,29 +170,43 @@ public class OauthUtils {
         }
 
         if (user.isActive()) {
-
+            setSystemRoles(user, frontEndUser);
+            
             // Set the roles to the user
-            setRoles(service, userJsonResponse, user);
+            setRoles(service, jsonMap, user);
 
             // Authenticate to dotCMS
             Logger.info(this.getClass().getName(), "Doing login!");
-            HttpSession httpSession = request.getSession(true);
-            final Object accessTokenObject = httpSession.getAttribute(OAuthConstants.ACCESS_TOKEN);
-            final boolean rememberMe = "true".equalsIgnoreCase(getProperty(REMEMBER_ME, "true"));
+
+            
             APILocator.getLoginServiceAPI().doCookieLogin(PublicEncryptionFactory.encryptString(user.getUserId()),
-                            request, response, rememberMe);
+                            request, response, false);
 
             Logger.info(this.getClass().getName(), "Finish back end login!");
-            PrincipalThreadLocal.setName(user.getUserId());
-            httpSession = request.getSession(true);
-            httpSession.setAttribute(WebKeys.USER_ID, user.getUserId());
 
 
             // Keep the token in session
-            httpSession.setAttribute(OAuthConstants.ACCESS_TOKEN, accessToken.getToken());
+            request.getSession().setAttribute(OAuthConstants.ACCESS_TOKEN, accessToken.getToken());
         }
     } // authenticate.
 
+
+    public void setSystemRoles(User user, boolean frontEnd) {
+
+        final Role roleToAdd = frontEnd 
+                        ? Try.of(() -> APILocator.getRoleAPI().loadLoggedinSiteRole()).getOrNull()
+                        : Try.of(() -> APILocator.getRoleAPI().loadBackEndUserRole()).getOrNull();
+
+        if (roleToAdd != null) {
+            Try.run(() -> APILocator.getRoleAPI().addRoleToUser(roleToAdd, user)).onFailure(e->{Logger.warn(OauthUtils.class.getName(), e.getMessage(),e);});
+        }
+
+
+    }
+    
+    
+    
+    
     public void setRoles(final OAuthService service, final Map<String, Object> userJsonResponse, final User user)
                     throws DotDataException {
 
@@ -244,14 +246,15 @@ public class OauthUtils {
         }
     } // addRole.
 
-    public User createUser(final String firstNameProp, final String lastNameProp,
-                    final Map<String, Object> userJsonResponse, final User sys)
+    
+    public User createUser(final Map<String, Object> userJsonResponse )
                     throws DotDataException, DotSecurityException, PasswordException {
         final String subject = (String) userJsonResponse.get("sub");
+        final String email = getEmail(userJsonResponse);
         final String userId = (subject != null) ? subject : UUIDGenerator.generateUuid();
-        final String email = new String(userJsonResponse.get("email").toString().getBytes(), UTF_8);
-        final String lastName = new String(userJsonResponse.get(lastNameProp).toString().getBytes(), UTF_8);
-        final String firstName = new String(userJsonResponse.get(firstNameProp).toString().getBytes(), UTF_8);
+        
+        final String lastName = getLastName(userJsonResponse);
+        final String firstName = getFirstName(userJsonResponse);
 
         final User user = APILocator.getUserAPI().createUser(userId, email);
         user.setNickName(firstName);
@@ -264,10 +267,35 @@ public class OauthUtils {
         user.setPassword(PasswordFactoryProxy
                         .generateHash(UUIDGenerator.generateUuid() + "/" + UUIDGenerator.generateUuid()));
         user.setPasswordEncrypted(true);
-        APILocator.getUserAPI().save(user, sys, false);
+        APILocator.getUserAPI().save(user, APILocator.systemUser(), false);
 
         return user;
     } // createUser.
+    
+    private String getEmail(Map<String, Object> jsonMap) {
+
+        return (String) jsonMap.getOrDefault("email", 
+                        jsonMap.getOrDefault("email_address", 
+                        jsonMap.getOrDefault("emailaddress", "unknown")));
+
+    }
+    
+    
+    private String getFirstName(Map<String, Object> jsonMap) {
+        return (String) jsonMap.getOrDefault("first_name", 
+                        jsonMap.getOrDefault("firstname",
+                        jsonMap.getOrDefault("given_name", 
+                        jsonMap.getOrDefault("givenname", "unknown"))));
+
+    }
+    
+    private String getLastName(Map<String, Object> jsonMap) {
+        return (String) jsonMap.getOrDefault("last_name", 
+                        jsonMap.getOrDefault("lastname",
+                        jsonMap.getOrDefault("family_name", 
+                        jsonMap.getOrDefault("familyname", "unknown"))));
+
+    }
     
     
 }

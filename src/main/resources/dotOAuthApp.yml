@@ -71,7 +71,7 @@ params:
     hidden: false
     type: "STRING"
     hint: "Some OAuth providers offer custom domains for authentication, e.g. https://dotcms.okta.com.  The value here will form the root of the calls for tokens, protected resources and any group resources.  Leave blank for the default."
-    required: true
+    required: false
     
   protectedResource:
     label: "Protected Resource (URL)"
@@ -79,7 +79,7 @@ params:
     hidden: false
     type: "STRING"
     hint: "The protected resource url for your OAuth provider. Leave blank to use the default for your provider."
-    required: true
+    required: false
     
   groupResource:
     label: "Group Resource (URL)"

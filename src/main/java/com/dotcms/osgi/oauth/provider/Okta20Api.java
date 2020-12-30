@@ -6,6 +6,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import org.scribe.builder.api.DefaultApi20;
 import org.scribe.exceptions.OAuthException;
 import org.scribe.extractors.AccessTokenExtractor;
@@ -22,6 +24,7 @@ import com.dotcms.osgi.oauth.util.JsonUtil;
 import com.dotcms.osgi.oauth.util.OauthUtils;
 import com.dotmarketing.util.Logger;
 import com.liferay.portal.model.User;
+import io.vavr.control.Try;
 
 /**
  * @author Jonathan Gamba 8/24/18
@@ -53,6 +56,10 @@ public class Okta20Api extends DefaultApi20 implements DotProvider {
     @Override
     public String getRevokeTokenEndpoint() {
         return String.format("%s/oauth2/v1/revoke", config().baseOrganizationUrl);
+    }
+  
+    public String getLogoutUrl() {
+        return String.format("%s/login/signout", config().baseOrganizationUrl);
     }
 
     @Override
@@ -148,13 +155,12 @@ public class Okta20Api extends DefaultApi20 implements DotProvider {
         @Override
         public Collection<String> getGroups(User user, final Map<String, Object> userJsonResponse) {
 
-            final String providerName = getSimpleName();
+
             final String groupPrefix = config().getGroupPrefix();
-            final String organizationURL = config().baseOrganizationUrl;
             final String apiToken = config().apiKey;
             final String groupsResourceUrl = String.format(config().groupResource, user.getUserId());
 
-            final OAuthRequest oauthGroupsRequest = new OAuthRequest(Verb.GET, organizationURL + groupsResourceUrl);
+            final OAuthRequest oauthGroupsRequest = new OAuthRequest(Verb.GET, groupsResourceUrl);
             oauthGroupsRequest.addHeader("Authorization", "SSWS " + apiToken);
             oauthGroupsRequest.addHeader("Content-Type", "application/json");
             oauthGroupsRequest.addHeader("Accept", "application/json");
@@ -193,7 +199,7 @@ public class Okta20Api extends DefaultApi20 implements DotProvider {
 
 
             } catch (Exception e) {
-                throw new OAuthException(String.format("Unable to get groups in remote authentication server [%s] [%s]",
+                Logger.warn(Okta20Api.class.getName(), String.format("Unable to get groups in remote authentication server [%s] [%s]",
                                 groupsResourceUrl, groupsCallResponse.getMessage()), e);
             }
 
@@ -217,16 +223,21 @@ public class Okta20Api extends DefaultApi20 implements DotProvider {
                 final Response revokeCallResponse = revokeRequest.send();
 
                 if (!revokeCallResponse.isSuccessful()) {
-                    Logger.error(this.getClass(), String.format("Unable to revoke access token [%s] [%s] [%s]",
+                    Logger.error(this.getClass().getName(), String.format("Unable to revoke access token [%s] [%s] [%s]",
                                     revokeURL, token, revokeCallResponse.getMessage()));
                 } else {
-                    Logger.info(this.getClass(), "Successfully revoked access token");
-                    Logger.info(this.getClass(), revokeCallResponse.getBody());
+                    Logger.info(this.getClass().getName(), "Successfully revoked access token");
+                    Logger.info(this.getClass().getName(), revokeCallResponse.getBody());
                 }
 
             }
         }
+        
+        @Override
+        public boolean logout(HttpServletRequest request, HttpServletResponse response) {
 
+            Try.run(()->response.sendRedirect(config().baseOrganizationUrl + "/login/signout"));
+            return true;
+        }
     }
-
 }
