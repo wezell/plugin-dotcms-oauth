@@ -36,7 +36,7 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
     private static final List<String> BACK_END_URLS = ImmutableList.of("/html/portal/login,", "/dotAdmin/", "/c/");
     private static final List<String> BACK_END_URLS_TO_ALLOW = ImmutableList.of(".bundle.", "/appconfiguration",
             "/authentication", ".chunk.", "/loginform", ".woff", ".ttf", "/logout", ".js", ".css");
-    private static final List<String> FRONT_END_URLS = ImmutableList.of("/dotCMS/login","/application/login/login","/login");
+    private static final List<String> FRONT_END_URLS = ImmutableList.of("/dotCMS/login","/application/login/login*","/login*");
 
     private static final Token EMPTY_TOKEN = null;
 

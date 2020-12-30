@@ -1,6 +1,7 @@
 package com.dotcms.osgi.oauth.app;
 
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -33,6 +34,16 @@ public class AppConfig implements Serializable {
     public final String getValue(final String key, final String defaultValue) {
         return extraParameters.compute(key, (k, v) -> (v == null) ? defaultValue : v);
     }
+    
+    public final String[] getArrayValue(final String key) {
+        
+        return UtilMethods.isSet(extraParameters.get(key))
+                        ? Arrays.stream(extraParameters.get(key).split(",")).map(String::trim).toArray(String[]::new)
+                        : new String[0];
+
+    }
+    
+    
 
     public final String getGroupPrefix() {
         return getValue("groupPrefix", "dotcms_");

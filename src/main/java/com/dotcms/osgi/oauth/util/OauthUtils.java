@@ -1,6 +1,6 @@
 package com.dotcms.osgi.oauth.util;
 
-import static com.dotcms.osgi.oauth.util.OAuthPropertyBundle.getProperty;
+
 import static com.dotcms.osgi.oauth.util.Constants.*;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.util.Collection;
@@ -214,13 +214,13 @@ public class OauthUtils {
          * NOTE: We are not creating roles here, the role needs to exist in order to be associated to the
          * user
          */
-
+        AppConfig appConfig = AppConfig.config().get();
         // First lets handle the roles we need to add from the configuration file
         Logger.info(this.getClass().getName(), "User is active, adding roles!");
-        final String rolesToAdd = getProperty(ROLES_TO_ADD);
-        final StringTokenizer st = new StringTokenizer(rolesToAdd, ",;");
-        while (st.hasMoreElements()) {
-            final String roleKey = st.nextToken().trim();
+        
+        final String[] rolesToAdd = appConfig.getArrayValue("rolesToAdd");
+        
+        for (String roleKey : rolesToAdd) {
             this.addRole(user, roleKey);
         }
 

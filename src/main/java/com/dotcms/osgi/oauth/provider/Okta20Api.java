@@ -59,7 +59,7 @@ public class Okta20Api extends DefaultApi20 implements DotProvider {
     }
   
     public String getLogoutUrl() {
-        return String.format("%s/login/signout", config().baseOrganizationUrl);
+        return String.format("%s/oauth2/v1/logout", config().baseOrganizationUrl);
     }
 
     @Override
@@ -232,12 +232,6 @@ public class Okta20Api extends DefaultApi20 implements DotProvider {
 
             }
         }
-        
-        @Override
-        public boolean logout(HttpServletRequest request, HttpServletResponse response) {
 
-            Try.run(()->response.sendRedirect(config().baseOrganizationUrl + "/login/signout"));
-            return true;
-        }
     }
 }

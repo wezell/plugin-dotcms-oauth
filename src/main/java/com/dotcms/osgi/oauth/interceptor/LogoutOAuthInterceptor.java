@@ -10,6 +10,8 @@ import javax.servlet.http.HttpSession;
 import org.scribe.builder.ServiceBuilder;
 import org.scribe.builder.api.DefaultApi20;
 import org.scribe.model.OAuthConstants;
+import org.scribe.model.OAuthRequest;
+import org.scribe.model.Verb;
 import org.scribe.oauth.OAuthService;
 import com.dotcms.filters.interceptor.Result;
 import com.dotcms.filters.interceptor.WebInterceptor;
@@ -17,8 +19,6 @@ import com.dotcms.osgi.oauth.app.AppConfig;
 import com.dotcms.osgi.oauth.service.DotService;
 import com.dotcms.osgi.oauth.util.OauthUtils;
 import com.dotmarketing.business.APILocator;
-import com.liferay.portal.model.User;
-import com.liferay.portal.util.PortalUtil;
 import io.vavr.control.Try;
 
 /**
@@ -48,10 +48,6 @@ public class LogoutOAuthInterceptor implements WebInterceptor {
         if (request.getSession(false) == null || !config.isPresent()) {
             return this.logout(request, response);
         }
-        
-        final User user = PortalUtil.getUser(request);
-        
-        
 
 
         // Check if there is a token to invalidate
@@ -64,42 +60,45 @@ public class LogoutOAuthInterceptor implements WebInterceptor {
 
         // Look for the provider to use
         Optional<DefaultApi20> apiProvider = this.oauthUtils.getAPIProvider(config.get());
-        if (apiProvider.isPresent()) {
+        if (!apiProvider.isPresent()) {
+            return this.logout(request, response);   
+        }
 
-            final String accessToken = (String) accessTokenObject;
+        final String accessToken = (String) accessTokenObject;
 
 
-            final String providerName = apiProvider.getClass().getSimpleName();
-            final String apiKey = config.get().apiKey;
-            final String apiSecret =new String(config.get().apiSecret);
+        final String providerName = apiProvider.getClass().getSimpleName();
+        final String apiKey = config.get().apiKey;
+        final String apiSecret = new String(config.get().apiSecret);
 
-            final OAuthService service =
-                            new ServiceBuilder()
-                            .apiKey(apiKey)
-                            .apiSecret(apiSecret)
-                            .provider(apiProvider.get())
-                            .build();
+        final OAuthService service =
+                        new ServiceBuilder().apiKey(apiKey).apiSecret(apiSecret).provider(apiProvider.get()).build();
 
-            // Invalidate the token
-            if (service instanceof DotService) {
-                ((DotService) service).revokeToken(accessToken);
-               if( ((DotService) service).logout(request, response)) {
-                   return Result.SKIP_NO_CHAIN;
-               }
-                   
-            }
+        // Invalidate the token
+        if (service instanceof DotService) {
+            ((DotService) service).revokeToken(accessToken);
+        }
 
-        } 
+        final OAuthRequest logoutRequest = new OAuthRequest(Verb.GET, "https://dev-935528.oktapreview.com/logout");
+        logoutRequest.addQuerystringParameter("id_token_hint", accessToken);
+        logoutRequest.addQuerystringParameter("post_logout_redirect_uri", "https://localhost.dotcms.com");
+        logoutRequest.addQuerystringParameter("state", System.currentTimeMillis() + "");
+
+        response.sendRedirect(logoutRequest.getCompleteUrl());
+        session.invalidate();
+        return Result.SKIP_NO_CHAIN;
+        //this.logout(request, response);
+
+
+        
         
 
 
-
-        return this.logout(request, response);
+        
     }
     
     private Result logout(HttpServletRequest request, HttpServletResponse response) {
         Try.run(() -> APILocator.getLoginServiceAPI().doActionLogout(request, response));
-        request.getSession().invalidate();
         return Result.NEXT;
     }
     
