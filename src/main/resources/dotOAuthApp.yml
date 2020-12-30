@@ -1,0 +1,84 @@
+---
+name: "OAuth Authentication"
+description: "This provides a means to configure OAuth Authentication for your dotCMS Application"
+iconUrl: "https://avatars3.githubusercontent.com/u/1005263?s=400&u=dd87be9aba0f44feb1b82cab52a5b7fffe5119e3&v=4"
+allowExtraParameters: true
+params:
+  enableBackend:
+    label: "Backend"
+    value: "false"
+    hidden: false
+    type: "BOOL"
+    hint: "This enables OAuth Authentication for Back End Authentication/Users"
+    required: false
+    
+  enableFrontend:
+    label: "Frontend"
+    value: "false"
+    hidden: false
+    type: "BOOL"
+    hint: "This enables OAuth Authentication for Front End Authentication/Users"
+    required: false
+
+  provider:
+    hidden: false
+    type: "SELECT"
+    label: "Your OAuth Provider"
+    hint: "Select your OAuth Provider"
+    required: true
+    value:
+      -
+        label: "Okta"
+        value: "com.dotcms.osgi.oauth.provider.Okta20Api"
+        selected: true
+      -
+        label: "Google"
+        value: "com.dotcms.osgi.oauth.provider.Google20Api"
+      -
+        label: "Facebook"
+        value: "com.dotcms.osgi.oauth.provider.Facebook20Api"
+      -
+        label: "Ping Identity"
+        value: "com.dotcms.osgi.oauth.provider.Ping20Api"
+
+  apiKey:
+    label: "OAuth Api Key"
+    value: ""
+    hidden: false
+    type: "STRING"
+    hint: "This is the API key passed to your auth provider"
+    required: true
+    
+  apiSecret:
+    label: "OAuth API Secret"
+    value: ""
+    hidden: true
+    type: "STRING"
+    hint: "This is your API Secret used to authenticate with your auth provider"
+    required: true
+
+  scope:
+    label: "Scope(s)"
+    value: ""
+    hidden: false
+    type: "STRING"
+    hint: "The scopes passed to your OAuth provider (space delimited)"
+    required: true
+    
+  protectedResource:
+    label: "Protected Resource (URL)"
+    value: ""
+    hidden: false
+    type: "STRING"
+    hint: "The protected resource url for your OAuth provider"
+    required: true
+    
+  groupResource:
+    label: "Group Resource (URL)"
+    value: ""
+    hidden: false
+    type: "STRING"
+    hint: "(Optional) OAuth provider's endpoint for group memebership"
+    required: false
+    
+    
