@@ -1,6 +1,6 @@
 package com.dotcms.osgi.oauth.provider;
 
-import static com.dotcms.osgi.oauth.util.OAuthPropertyBundle.getProperty;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -30,8 +30,12 @@ public class Okta20Api extends DefaultApi20 implements DotProvider {
 
     private final String state;
 
+    private final String Okta20Api_GROUPS_RESOURCE_URL = "/api/v1/users/%s/groups";
+
+
     public Okta20Api() {
         this.state = "state_" + new Random().nextInt(999_999);
+
     }
 
     /**
@@ -43,12 +47,12 @@ public class Okta20Api extends DefaultApi20 implements DotProvider {
     }
 
     private String getBaseAccessTokenEndpoint() {
-        return String.format("%s/oauth2/v1/token", getOrganizationURL());
+        return String.format("%s/oauth2/v1/token", config().baseOrganizationUrl);
     }
 
     @Override
     public String getRevokeTokenEndpoint() {
-        return String.format("%s/oauth2/v1/revoke", getOrganizationURL());
+        return String.format("%s/oauth2/v1/revoke", config().baseOrganizationUrl);
     }
 
     @Override
@@ -58,39 +62,27 @@ public class Okta20Api extends DefaultApi20 implements DotProvider {
 
     /**
      * This is a starting point for browser-based OpenID Connect flows such as the implicit and
-     * authorization code flows. This request authenticates the user and returns tokens along with
-     * an authorization grant to the client application as a part of the callback response.
+     * authorization code flows. This request authenticates the user and returns tokens along with an
+     * authorization grant to the client application as a part of the callback response.
      * https://developer.okta.com/authentication-guide/implementing-authentication/auth-code
      */
     @Override
     public String getAuthorizationUrl(OAuthConfig config) {
 
         /*
-        NOTE: The callback domain must be added as a trusted origin -> admin/access/api/trusted_origins
-        also can be configured in Applications -> Your application -> General
+         * NOTE: The callback domain must be added as a trusted origin -> admin/access/api/trusted_origins
+         * also can be configured in Applications -> Your application -> General
          */
 
-        return getBaseAuthorizationUrl() + String.format(""
-                        + "?client_id=%s"
-                        + "&response_type=%s"
-                        + "&scope=%s"
-                        + "&redirect_uri=%s"
-                        + "&state=%s",
-                config.getApiKey(),
-                getResponseType(),
-                config.getScope(),
-                config.getCallback(),
-                getState()
-        );
+        return getBaseAuthorizationUrl() + String.format(
+                        "" + "?client_id=%s" + "&response_type=%s" + "&scope=%s" + "&redirect_uri=%s" + "&state=%s",
+                        config.getApiKey(), getResponseType(), config.getScope(), config.getCallback(), getState());
     }
 
     private String getBaseAuthorizationUrl() {
-        return String.format("%s/oauth2/v1/authorize", getOrganizationURL());
+        return String.format("%s/oauth2/v1/authorize", config().baseOrganizationUrl);
     }
 
-    private String getOrganizationURL() {
-        return getProperty(getSimpleName() + "_ORGANIZATION_URL");
-    }
 
     /**
      * response_type is code, indicating that we are using the authorization code grant type.
@@ -101,8 +93,8 @@ public class Okta20Api extends DefaultApi20 implements DotProvider {
 
     /**
      * state is an arbitrary alphanumeric string that the authorization server will reproduce when
-     * redirecting the user-agent back to the client. This is used to help prevent cross-site
-     * request forgery.
+     * redirecting the user-agent back to the client. This is used to help prevent cross-site request
+     * forgery.
      */
     private String getState() {
         return this.state;
@@ -157,29 +149,28 @@ public class Okta20Api extends DefaultApi20 implements DotProvider {
         public Collection<String> getGroups(User user, final Map<String, Object> userJsonResponse) {
 
             final String providerName = getSimpleName();
-            final String groupPrefix = getProperty(providerName + "_GROUP_PREFIX");
-            final String organizationURL = getProperty(providerName + "_ORGANIZATION_URL");
-            final String apiToken = getProperty(providerName + "_API_TOKEN");
-            final String groupsResourceUrl =
-                            String.format(getProperty(providerName + "_GROUPS_RESOURCE_URL"), user.getUserId());
+            final String groupPrefix = config().getGroupPrefix();
+            final String organizationURL = config().baseOrganizationUrl;
+            final String apiToken = config().apiKey;
+            final String groupsResourceUrl = String.format(config().groupResource, user.getUserId());
 
             final OAuthRequest oauthGroupsRequest = new OAuthRequest(Verb.GET, organizationURL + groupsResourceUrl);
             oauthGroupsRequest.addHeader("Authorization", "SSWS " + apiToken);
             oauthGroupsRequest.addHeader("Content-Type", "application/json");
             oauthGroupsRequest.addHeader("Accept", "application/json");
-            
-            final Collection<String> groups = new ArrayList<>();
-            
-            final Response groupsCallResponse = oauthGroupsRequest.send();
-            if (!groupsCallResponse.isSuccessful()) {
-                
-                Logger.error(this.getClass().getName(), String.format("Unable to connect to end point [%s] [%s]", groupsResourceUrl,
-                                groupsCallResponse.getMessage()));
-                return groups;
-            }
 
-            
+            final Collection<String> groups = new ArrayList<>();
+            Response groupsCallResponse = null;
             try {
+                groupsCallResponse = oauthGroupsRequest.send();
+                if (!groupsCallResponse.isSuccessful()) {
+
+                    Logger.error(this.getClass().getName(), String.format("Unable to connect to end point [%s] [%s]",
+                                    groupsResourceUrl, groupsCallResponse.getMessage()));
+                    return groups;
+                }
+
+
                 // Parse the response in order to get the user data
                 final List<Map<String, Object>> groupsJsonResponse =
                                 (List<Map<String, Object>>) new JsonUtil().generate(groupsCallResponse.getBody());
@@ -212,27 +203,22 @@ public class Okta20Api extends DefaultApi20 implements DotProvider {
         @Override
         public void revokeToken(String token) {
 
-            //Now lets try to invalidate the token
+            // Now lets try to invalidate the token
             final String revokeURL = this.api.getRevokeTokenEndpoint();
 
             if (null != revokeURL && !revokeURL.isEmpty()) {
 
                 final OAuthRequest revokeRequest = new OAuthRequest(Verb.POST, revokeURL);
                 revokeRequest.addQuerystringParameter("token", token);
-                revokeRequest
-                        .addQuerystringParameter("token_type_hint", OAuthConstants.ACCESS_TOKEN);
+                revokeRequest.addQuerystringParameter("token_type_hint", OAuthConstants.ACCESS_TOKEN);
                 revokeRequest.addQuerystringParameter(OAuthConstants.CLIENT_ID, config.getApiKey());
-                revokeRequest.addQuerystringParameter(OAuthConstants.CLIENT_SECRET,
-                        config.getApiSecret());
+                revokeRequest.addQuerystringParameter(OAuthConstants.CLIENT_SECRET, config.getApiSecret());
 
                 final Response revokeCallResponse = revokeRequest.send();
 
                 if (!revokeCallResponse.isSuccessful()) {
-                    Logger.error(this.getClass(),
-                            String.format("Unable to revoke access token [%s] [%s] [%s]",
-                                    revokeURL,
-                                    token,
-                                    revokeCallResponse.getMessage()));
+                    Logger.error(this.getClass(), String.format("Unable to revoke access token [%s] [%s] [%s]",
+                                    revokeURL, token, revokeCallResponse.getMessage()));
                 } else {
                     Logger.info(this.getClass(), "Successfully revoked access token");
                     Logger.info(this.getClass(), revokeCallResponse.getBody());

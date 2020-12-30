@@ -9,6 +9,8 @@ public enum AppKeys {
         SCOPE("scope"),
         PROTECTED_RESOURCE("protectedResource"),
         GROUP_RESOURCE("groupResource"),
+        BASE_ORGANIZATION_URL("baseOrganizationUrl"),
+        GROUP_PREFIX("groupPrefix")
         ;
 
 

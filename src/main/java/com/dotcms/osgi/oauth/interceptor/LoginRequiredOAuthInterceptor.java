@@ -1,26 +1,28 @@
 package com.dotcms.osgi.oauth.interceptor;
 
-import static com.dotcms.osgi.oauth.util.OAuthPropertyBundle.getProperty;
-import static com.dotcms.osgi.oauth.util.OauthUtils.CALLBACK_URL;
-import static com.dotcms.osgi.oauth.util.OauthUtils.JAVAX_SERVLET_FORWARD_REQUEST_URI;
-import static com.dotcms.osgi.oauth.util.OauthUtils.NATIVE;
-import static com.dotcms.osgi.oauth.util.OauthUtils.OAUTH_API_PROVIDER;
-import static com.dotcms.osgi.oauth.util.OauthUtils.OAUTH_REDIRECT;
-import static com.dotcms.osgi.oauth.util.OauthUtils.OAUTH_SERVICE;
-import static com.dotcms.osgi.oauth.util.OauthUtils.REFERRER;
-import com.dotcms.filters.interceptor.Result;
-import com.dotcms.filters.interceptor.WebInterceptor;
-import com.dotcms.osgi.oauth.util.OauthUtils;
-import com.dotmarketing.business.APILocator;
-import com.dotmarketing.util.Logger;
+import static com.dotcms.osgi.oauth.util.Constants.JAVAX_SERVLET_FORWARD_REQUEST_URI;
+import static com.dotcms.osgi.oauth.util.Constants.NATIVE;
+import static com.dotcms.osgi.oauth.util.Constants.OAUTH_API_PROVIDER;
+import static com.dotcms.osgi.oauth.util.Constants.OAUTH_REDIRECT;
+import static com.dotcms.osgi.oauth.util.Constants.OAUTH_SERVICE;
+import static com.dotcms.osgi.oauth.util.Constants.REFERRER;
 import java.io.IOException;
+import java.util.List;
+import java.util.Optional;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpSession;
 import org.scribe.builder.ServiceBuilder;
 import org.scribe.builder.api.DefaultApi20;
 import org.scribe.model.Token;
 import org.scribe.oauth.OAuthService;
+import com.dotcms.filters.interceptor.Result;
+import com.dotcms.filters.interceptor.WebInterceptor;
+import com.dotcms.osgi.oauth.app.AppConfig;
+import com.dotcms.osgi.oauth.util.Constants;
+import com.dotcms.osgi.oauth.util.OauthUtils;
+import com.dotmarketing.business.APILocator;
+import com.dotmarketing.util.Logger;
+import com.google.common.collect.ImmutableList;
 
 /**
  * This interceptor is used for handle the OAuth login check on DotCMS BE.
@@ -29,48 +31,32 @@ import org.scribe.oauth.OAuthService;
  */
 public class LoginRequiredOAuthInterceptor implements WebInterceptor {
 
-    private static final String NAME = "LoginRequiredOAuthInterceptor_5_0_1";
-
-    private static final String CMS_NATIVE_LOGIN="CMS_NATIVE_LOGIN_NO_OAUTH";
 
     
-    private static final String[] BACK_END_URLS = new String[] {"/html/portal/login,", "/dotAdmin/", "/c/"};
-    private static final String[] BACK_END_URLS_TO_ALLOW = new String[] {".bundle.", "/appconfiguration",
-            "/authentication", ".chunk.", "/loginform", ".woff", ".ttf", "/logout", ".js", ".css"};
-    private static final String[] FRONT_END_URLS = new String[] {"/dotCMS/login","/application/login/login"};
+    private static final List<String> BACK_END_URLS = ImmutableList.of("/html/portal/login,", "/dotAdmin/", "/c/");
+    private static final List<String> BACK_END_URLS_TO_ALLOW = ImmutableList.of(".bundle.", "/appconfiguration",
+            "/authentication", ".chunk.", "/loginform", ".woff", ".ttf", "/logout", ".js", ".css");
+    private static final List<String> FRONT_END_URLS = ImmutableList.of("/dotCMS/login","/application/login/login","/login");
 
     private static final Token EMPTY_TOKEN = null;
 
-    private final String oauthCallBackURL;
-    private final boolean isFrontEnd;
-    private final boolean isBackEnd;
+
     private final OauthUtils oauthUtils;
-
     public LoginRequiredOAuthInterceptor() {
+        
+        oauthUtils= OauthUtils.getInstance();
 
-        this.oauthUtils = OauthUtils.getInstance();
-
-        this.oauthCallBackURL = getProperty(CALLBACK_URL);
-        this.isFrontEnd = this.oauthUtils.forFrontEnd();
-        this.isBackEnd = this.oauthUtils.forBackEnd();
     }
 
+    
     @Override
     public String[] getFilters() {
-        // Verify if a protected page was requested and we need to request a login
-        String[] urlsToVerify = new String[] {};
-        if (this.isFrontEnd) {
-            urlsToVerify = FRONT_END_URLS;
-        } else if (this.isBackEnd) {
-            urlsToVerify = BACK_END_URLS;
-        }
+        return new ImmutableList.Builder<String>()
+                        .addAll(BACK_END_URLS)
+                        .addAll(FRONT_END_URLS)
+                        .build()
+                        .toArray(new String[0]);
 
-        return urlsToVerify;
-    }
-
-    @Override
-    public String getName() {
-        return NAME;
     }
 
     /**
@@ -81,72 +67,95 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
     @Override
     public Result intercept(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
 
-        Result result = Result.NEXT;
 
-        // If we already have an user we can continue
+        // If we already have a logged in user, continue
         boolean isLoggedInUser = APILocator.getLoginServiceAPI().isLoggedIn(request);
-        if (!isLoggedInUser) {
-
-
-            final String requestedURI = request.getRequestURI();
-
-            // Should we use regular login?, we need to allow some urls in order to load the admin page
-            boolean isNative = true;
-            if (Boolean.TRUE.toString().equalsIgnoreCase(request.getParameter(NATIVE)) ) {
-                if( request.getSession().getAttribute(CMS_NATIVE_LOGIN)==null) {
-                    request.getSession().setAttribute(CMS_NATIVE_LOGIN,CMS_NATIVE_LOGIN);
-                    
-                }
+        if (isLoggedInUser) {
+            return Result.NEXT;
+        }
+        
+        
+        Optional<AppConfig> configOpt = AppConfig.config(request);
+        final String uri = request.getRequestURI();
+        
+        // if we have no oauth configured, continue
+        if(!configOpt.isPresent()) {
+            return Result.NEXT;
+        }
+        AppConfig config = configOpt.get();
+        // clear native if ?native=false
+        if (Boolean.FALSE.toString().equalsIgnoreCase(request.getParameter(NATIVE)) ) {
+            request.getSession().removeAttribute(Constants.CMS_NATIVE_LOGIN);
+        }
+        
+        // if ?native=true set it in session and continue
+        if (Boolean.TRUE.toString().equalsIgnoreCase(request.getParameter(NATIVE))) {
+            if(request.getSession().getAttribute(Constants.CMS_NATIVE_LOGIN)==null) {
+                request.getSession().setAttribute(Constants.CMS_NATIVE_LOGIN,Boolean.TRUE);
             }
-            if( request.getSession().getAttribute(CMS_NATIVE_LOGIN)==null) {
-                isNative = false;
-                for (final String toCheck : BACK_END_URLS_TO_ALLOW) {
-                    if (requestedURI.contains(toCheck)) {
-                        isNative = true;// Allow to continue without authentication
-                        break;
-                    }
-                }
-            }
+            return Result.NEXT;
+        }
+        
 
-            if(requestedURI.equals("/dotAdmin/index.html") || requestedURI.equals("/dotAdmin/")) {
-                Logger.info(this.getClass().getName(), "we got the index.html page!!!");
-                response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate"); 
-                response.setHeader("Pragma", "no-cache"); 
-                response.setDateHeader("Expires", 0); 
-                
-            }
+        // if we allow this url, continue
+        if(BACK_END_URLS_TO_ALLOW.stream().filter(s->uri.contains(s)).findAny().isPresent()) {
+            return Result.NEXT;
+        }
             
-            
-            
-            if (!isNative) {
+        // set no cache headers if needed
+        setNoCacheHeaders(uri,response);
 
-                // Look for the provider to use
-                DefaultApi20 apiProvider = this.oauthUtils.getAPIProvider(request, request.getSession());
-                if (null != apiProvider) {
+        // set FRONT_END_LOGIN to true if a front end login
+        if(config.enableFrontend 
+                        && request.getSession().getAttribute(Constants.FRONT_END_LOGIN)==null 
+                        && FRONT_END_URLS.stream().filter(s->uri.startsWith(s)).findAny().isPresent()) {
+            request.getSession().setAttribute(Constants.FRONT_END_LOGIN,Boolean.TRUE);
+        }
+        
 
-                    final String callbackHost = this.getCallbackHost(request);
-                    final String providerName = apiProvider.getClass().getSimpleName();
-                    final String apiKey = getProperty(providerName + "_API_KEY");
-                    final String apiSecret = getProperty(providerName + "_API_SECRET");
-                    final String scope = getProperty(providerName + "_SCOPE");
+        // OAUTH HERE, get the provider class from the config
+        final Optional<DefaultApi20> apiProviderOpt = this.oauthUtils.getAPIProvider(config);
+        
+        if (apiProviderOpt.isPresent()) {
+            final DefaultApi20 apiProvider = apiProviderOpt.get();
+            final String callbackHost = this.getCallbackHost(request);
+            final String apiKey = config.apiKey;
+            final String apiSecret = new String(config.apiSecret);
+            final String scope =String.join("+", config.scope);
 
-                    // todo: this should be a factory based on the provider type
-                    final OAuthService service = new ServiceBuilder().apiKey(apiKey).apiSecret(apiSecret)
-                                    .callback(callbackHost + this.oauthCallBackURL).provider(apiProvider).scope(scope)
-                                    .build();
+            // todo: this should be a factory based on the provider type
+            final OAuthService service = new ServiceBuilder()
+                            .apiKey(apiKey)
+                            .apiSecret(apiSecret)
+                            .callback(callbackHost + Constants.CALLBACK_URL)
+                            .provider(apiProvider)
+                            .scope(scope)
+                            .build();
 
-                    // Send for authorization
-                    Logger.info(this.getClass(), "Sending for authorization");
-                    sendForAuthorization(request, response, service, apiProvider);
-                    result = Result.SKIP_NO_CHAIN; // needs to stop the filter chain.
-                }
-
-            }
+            // Send for authorization
+            Logger.info(this.getClass(), "Sending for authorization");
+            sendForAuthorization(request, response, service, apiProvider);
+            return Result.SKIP_NO_CHAIN; // needs to stop the filter chain.
         }
 
-        return result; // if it is log in, continue!
+            
+        
+
+        return Result.NEXT;
     } // intercept.
 
+    
+    private void setNoCacheHeaders(String uri, HttpServletResponse response) {
+        // set no cache on the login page
+        if(uri.equals("/dotAdmin/index.html") || uri.equals("/dotAdmin/")) {
+            Logger.info(this.getClass().getName(), "we got the index.html page!!!");
+            response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate"); 
+            response.setHeader("Pragma", "no-cache"); 
+            response.setDateHeader("Expires", 0); 
+        }
+    }
+
+    
     private void sendForAuthorization(final HttpServletRequest request, final HttpServletResponse response,
                     final OAuthService service, final DefaultApi20 apiProvider) throws IOException {
 

@@ -1,7 +1,7 @@
 ---
 name: "OAuth Authentication"
 description: "This provides a means to configure OAuth Authentication for your dotCMS Application"
-iconUrl: "https://avatars3.githubusercontent.com/u/1005263?s=400&u=dd87be9aba0f44feb1b82cab52a5b7fffe5119e3&v=4"
+iconUrl: "https://static.dotcms.com/assets/icons/apps/Oauth_logo.svg"
 allowExtraParameters: true
 params:
   enableBackend:
@@ -65,12 +65,20 @@ params:
     hint: "The scopes passed to your OAuth provider (space delimited)"
     required: true
     
+  baseOrganizationUrl:
+    label: "Base Organization domain/URL"
+    value: ""
+    hidden: false
+    type: "STRING"
+    hint: "Some OAuth providers offer custom domains for authentication, e.g. https://dotcms.okta.com.  The value here will form the root of the calls for tokens, protected resources and any group resources.  Leave blank for the default."
+    required: true
+    
   protectedResource:
     label: "Protected Resource (URL)"
     value: ""
     hidden: false
     type: "STRING"
-    hint: "The protected resource url for your OAuth provider"
+    hint: "The protected resource url for your OAuth provider. Leave blank to use the default for your provider."
     required: true
     
   groupResource:
@@ -78,7 +86,7 @@ params:
     value: ""
     hidden: false
     type: "STRING"
-    hint: "(Optional) OAuth provider's endpoint for group memebership"
+    hint: "OAuth provider's endpoint for group memebership. Leave blank to use the default for your provider."
     required: false
     
     

@@ -2,6 +2,7 @@ package com.dotcms.osgi.oauth.app;
 
 import java.io.Serializable;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import javax.annotation.Nonnull;
@@ -11,6 +12,7 @@ import com.dotcms.security.apps.Secret;
 import com.dotmarketing.beans.Host;
 import com.dotmarketing.business.APILocator;
 import com.dotmarketing.business.web.WebAPILocator;
+import com.dotmarketing.util.UtilMethods;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.vavr.control.Try;
 
@@ -22,34 +24,54 @@ public class AppConfig implements Serializable {
 
 
     public final boolean enableBackend, enableFrontend;
-    public final String provider, apiKey, protectedResource, groupResource;
+    public final String provider, apiKey, protectedResource, groupResource, baseOrganizationUrl;
     public final char[] apiSecret;
     public final String[] scope;
     public final Map<String, String> extraParameters;
 
 
+    public final String getValue(final String key, final String defaultValue) {
+        return extraParameters.compute(key, (k, v) -> (v == null) ? defaultValue : v);
+    }
+
+    public final String getGroupPrefix() {
+        return getValue("groupPrefix", "dotcms_");
+    }
+
+
     private AppConfig(Builder builder) {
         this.enableBackend = builder.enableBackend;
+        this.baseOrganizationUrl = builder.baseOrganizationUrl;
         this.enableFrontend = builder.enableFrontend;
         this.protectedResource = builder.protectedResource;
         this.groupResource = builder.groupResource;
         this.provider = builder.provider;
         this.apiKey = builder.apiKey;
         this.apiSecret = builder.apiSecret;
-        this.scope = builder.scope;
+        this.scope = (builder.scope == null) ? new String[0] : builder.scope;
         this.extraParameters = builder.extraParameters;
     }
 
 
+    public static Optional<AppConfig> config() {
+        return AppConfigThreadLocal.INSTANCE.getConfig();
+
+    }
+
+
     /**
-     * Gets the secrets from the App - this will check the current host then the SYSTEMM_HOST for a
-     * valid configuration. This lookup is low overhead and cached by dotCMS.
+     * Gets the secrets from the App - this will check the current host then the SYSTEM_HOST for a valid
+     * configuration. This lookup is low overhead and cached by dotCMS.
      * 
      * @param request
      * @return
      */
-    public Optional<AppConfig> config(final HttpServletRequest request) {
+    public static Optional<AppConfig> config(final HttpServletRequest request) {
 
+
+        if (AppConfigThreadLocal.INSTANCE.getConfig().isPresent()) {
+            return AppConfigThreadLocal.INSTANCE.getConfig();
+        }
 
         final Host host = WebAPILocator.getHostWebAPI().getCurrentHostNoThrow(request);
 
@@ -61,9 +83,9 @@ public class AppConfig implements Serializable {
             return Optional.empty();
         }
 
-        final Map<String, Secret> secrets = appSecrets.get().getSecrets();
-
-
+        final Map<String, Secret> secrets = new HashMap<>(appSecrets.get().getSecrets());
+        
+        Map<String, String> extraParameters = new HashMap<>();
         boolean enableBackend =
                         Try.of(() -> secrets.get(AppKeys.ENABLE_BACKEND.key).getBoolean()).getOrElse(Boolean.FALSE);
         boolean enableFrontend =
@@ -74,30 +96,48 @@ public class AppConfig implements Serializable {
         }
 
         String provider = Try.of(() -> secrets.get(AppKeys.PROVIDER.key).getString().trim()).getOrNull();
-        String protectedResource = Try.of(() -> secrets.get(AppKeys.PROTECTED_RESOURCE.key).getString().trim()).getOrNull();
+        String baseOrganizationUrl =
+                        Try.of(() -> secrets.get(AppKeys.BASE_ORGANIZATION_URL.key).getString().trim()).getOrNull();
+        String protectedResource =
+                        Try.of(() -> secrets.get(AppKeys.PROTECTED_RESOURCE.key).getString().trim()).getOrNull();
+        
+        if(UtilMethods.isSet(protectedResource) && !protectedResource.startsWith(baseOrganizationUrl) && ! protectedResource.contains("://")) {
+            protectedResource = baseOrganizationUrl + protectedResource;
+        }
+        
+        
         String groupResource = Try.of(() -> secrets.get(AppKeys.GROUP_RESOURCE.key).getString().trim()).getOrNull();
+        
+        if(UtilMethods.isSet(groupResource) && !groupResource.startsWith(baseOrganizationUrl) && ! groupResource.contains("://")) {
+            groupResource = baseOrganizationUrl + groupResource;
+        }
+        
+        
         String apiKey = Try.of(() -> secrets.get(AppKeys.API_KEY.key).getString().trim()).getOrNull();
         char[] apiSecret = Try.of(() -> secrets.get(AppKeys.API_SECRET.key).getValue()).getOrElse(new char[0]);
         String[] scope = Try.of(() -> secrets.get(AppKeys.SCOPE.key).getString().split("[, ]"))
                         .getOrElse(new String[0]);
 
+        for (AppKeys key : AppKeys.values()) {
+            secrets.remove(key.key);
+        }
 
-        Map<String, String> extraParameters = null;
-
-
-        AppConfig config = AppConfig.builder()
-                        .withApiKey(apiKey)
-                        .withApiSecret(apiSecret)
-                        .withEnableBackend(enableBackend)
-                        .withEnableFrontend(enableFrontend)
-                        .withExtraParameters(extraParameters)
-                        .withGroupResource(groupResource)
-                        .withProtectedResource(protectedResource)
-                        .withProvider(provider)
-                        .withScope(scope).build();
+        for (String key : secrets.keySet()) {
+            extraParameters.put(key, secrets.get(key).getString());
+        }
 
 
-        return Optional.ofNullable(config);
+        AppConfig config = AppConfig.builder().withApiKey(apiKey).withApiSecret(apiSecret)
+                        .withEnableBackend(enableBackend).withEnableFrontend(enableFrontend)
+                        .withExtraParameters(extraParameters).withGroupResource(groupResource)
+                        .withProtectedResource(protectedResource).withBaseOrganizationUrl(baseOrganizationUrl)
+                        .withProvider(provider).withScope(scope).build();
+
+
+        AppConfigThreadLocal.INSTANCE.setConfig(Optional.ofNullable(config));
+
+
+        return AppConfigThreadLocal.INSTANCE.getConfig();
 
 
     }
@@ -137,6 +177,7 @@ public class AppConfig implements Serializable {
         private String groupResource;
         private String provider;
         private String apiKey;
+        private String baseOrganizationUrl;
         private char[] apiSecret;
         private String[] scope;
         private Map<String, String> extraParameters = Collections.emptyMap();
@@ -146,13 +187,16 @@ public class AppConfig implements Serializable {
         private Builder(AppConfig appConfig) {
             this.enableBackend = appConfig.enableBackend;
             this.enableFrontend = appConfig.enableFrontend;
-            this.protectedResource = appConfig.protectedResource;
-            this.groupResource = appConfig.groupResource;
-            this.provider = appConfig.provider;
-            this.apiKey = appConfig.apiKey;
-            this.apiSecret = appConfig.apiSecret;
-            this.scope = appConfig.scope;
+            this.protectedResource =
+                            UtilMethods.isSet(appConfig.protectedResource) ? appConfig.protectedResource : null;
+            this.groupResource = UtilMethods.isSet(appConfig.groupResource) ? appConfig.groupResource : null;
+            this.provider = UtilMethods.isSet(appConfig.provider) ? appConfig.provider : null;
+            this.apiKey = UtilMethods.isSet(appConfig.apiKey) ? appConfig.apiKey : null;
+            this.apiSecret = UtilMethods.isSet(appConfig.apiSecret) ? appConfig.apiSecret : null;
+            this.scope = appConfig.scope == null ? new String[0] : appConfig.scope;
             this.extraParameters = appConfig.extraParameters;
+            this.baseOrganizationUrl =
+                            UtilMethods.isSet(appConfig.baseOrganizationUrl) ? appConfig.baseOrganizationUrl : null;
         }
 
         public Builder withEnableBackend(@Nonnull boolean enableBackend) {
@@ -165,35 +209,39 @@ public class AppConfig implements Serializable {
             return this;
         }
 
+        public Builder withBaseOrganizationUrl(@Nonnull String baseOrganizationUrl) {
+            this.baseOrganizationUrl = UtilMethods.isSet(baseOrganizationUrl) ? baseOrganizationUrl : null;
+            return this;
+        }
+
         public Builder withProtectedResource(@Nonnull String protectedResource) {
-            this.protectedResource = protectedResource;
+            this.protectedResource = UtilMethods.isSet(protectedResource) ? protectedResource : null;
             return this;
         }
 
         public Builder withGroupResource(@Nonnull String groupResource) {
-            this.groupResource = groupResource;
+            this.groupResource = UtilMethods.isSet(groupResource) ? groupResource : null;
             return this;
         }
 
         public Builder withProvider(@Nonnull String provider) {
-            this.provider = provider;
+            this.provider = UtilMethods.isSet(provider) ? provider : null;
             return this;
         }
 
         public Builder withApiKey(@Nonnull String apiKey) {
-            this.apiKey = apiKey;
+            this.apiKey = UtilMethods.isSet(apiKey) ? apiKey : null;
             return this;
         }
 
         public Builder withApiSecret(@Nonnull char[] apiSecret) {
-            this.apiSecret = apiSecret;
+            this.apiSecret = UtilMethods.isSet(apiSecret) ? apiSecret : null;
             return this;
         }
 
 
-
         public Builder withScope(@Nonnull String[] scope) {
-            this.scope = scope;
+            this.scope = (scope == null) ? new String[0] : scope;
             return this;
         }
 

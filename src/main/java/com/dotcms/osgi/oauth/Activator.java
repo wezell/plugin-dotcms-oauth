@@ -4,6 +4,7 @@ import org.osgi.framework.BundleContext;
 import com.dotcms.filters.interceptor.FilterWebInterceptorProvider;
 import com.dotcms.filters.interceptor.WebInterceptor;
 import com.dotcms.filters.interceptor.WebInterceptorDelegate;
+import com.dotcms.osgi.oauth.app.AppUtil;
 import com.dotcms.osgi.oauth.interceptor.LoginRequiredOAuthInterceptor;
 import com.dotcms.osgi.oauth.interceptor.LogoutOAuthInterceptor;
 import com.dotcms.osgi.oauth.interceptor.OAuthCallbackInterceptor;
@@ -33,6 +34,8 @@ public class Activator extends GenericBundleActivator {
         this.initializeServices(context);
         this.registerViewToolService(context, new OAuthToolInfo());
 
+        
+        new AppUtil().copyAppYml();
 
         for (WebInterceptor webIn : webInterceptors) {
             Logger.info(Activator.class.getName(), "Adding the " + webIn.getName());
@@ -46,12 +49,14 @@ public class Activator extends GenericBundleActivator {
 
         unregisterServices(context);
 
+        
+        new AppUtil().deleteYml();
         // Cleaning up the interceptors
 
 
         for (WebInterceptor webIn : webInterceptors) {
-            Logger.info(Activator.class.getName(), "Removing the " + webIn.getName());
-            delegate.remove(webIn.getClass().getName(), true);
+            Logger.info(Activator.class.getName(), "Removing the " + webIn.getClass().getName());
+            delegate.remove(webIn.getName(), true);
         }
 
     }
