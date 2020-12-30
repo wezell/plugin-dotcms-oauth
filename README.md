@@ -17,20 +17,29 @@ For reference:
 ## Interceptors
 ### com.dotcms.osgi.oauth.interceptor.LoginRequiredOAuthInterceptor
 Interceptor class that "intercepts" urls that require authentication, by default:
-* For backend `/dotAdmin, /dwr, /c/`
-* For front end `/dotCMS/login`
+
+* For backend 
+
+```
+/html/portal/login,/dotAdmin/, /c/
+```
+* For Frontend
+
+
+```
+/dotCMS/login,/application/login/login,/login*
+```
 
 Those URLs can be changed directly in the interceptor class modifying the `getFilters` method.
 
-https://github.com/dotCMS/plugin-dotcms-oauth/blob/master/src/main/java/com/dotcms/osgi/oauth/interceptor/LoginRequiredOAuthInterceptor.java#L61
+
 
 When one of those URLs are intercepted the code based on the selected authentication provider will redirect the user in order to authenticate himself with the provider.
 
 ### com.dotcms.osgi.oauth.interceptor.OAuthCallbackInterceptor
-Interceptor class that "intercepts" the configured call back url after the user is authenticated with the authentication provider.
+Interceptor class that "intercepts" the configured call back url after the user is authenticated with the authentication provider.  
 
-You can change that url in the `oauth2.properties`:
-* `CALLBACK_URL=/app/oauth2/callback`
+The callback url is `/api/v1/oauth2/callback`
 
 When the call back url is intercepted the provider returns an authorization code that is use to request an authentication token in order to query the user data and authenticate him in dotCMS. 
 
