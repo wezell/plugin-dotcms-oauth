@@ -4,6 +4,7 @@ import static com.dotcms.osgi.oauth.util.OAuthPropertyBundle.getProperty;
 import static com.dotcms.osgi.oauth.util.Constants.OAUTH_PROVIDER;
 import java.io.IOException;
 import java.util.Optional;
+import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
@@ -17,6 +18,8 @@ import com.dotcms.osgi.oauth.app.AppConfig;
 import com.dotcms.osgi.oauth.service.DotService;
 import com.dotcms.osgi.oauth.util.OauthUtils;
 import com.dotmarketing.business.APILocator;
+import com.dotmarketing.util.CookieUtil;
+import com.dotmarketing.util.Logger;
 import io.vavr.control.Try;
 
 /**
@@ -47,6 +50,18 @@ public class LogoutOAuthInterceptor implements WebInterceptor {
             return this.logout(request, response);
         }
 
+        OauthUtils.getInstance().setNoCacheHeaders(response);
+        String cookieToken =null;
+        for(Cookie c : request.getCookies()) {
+            if(c.getName().equals("access_token")) {
+                cookieToken= c.getValue();
+            }
+        }
+        
+
+        
+        com.liferay.util.CookieUtil.deleteCookie(request, response, "access_token");
+        
 
         // Check if there is a token to invalidate
         final Object accessTokenObject = session.getAttribute(OAuthConstants.ACCESS_TOKEN);
@@ -77,6 +92,8 @@ public class LogoutOAuthInterceptor implements WebInterceptor {
             // Invalidate the token
             if (service instanceof DotService) {
                 ((DotService) service).revokeToken(accessToken);
+                ((DotService) service).revokeToken(cookieToken);
+                
             }
 
         } 

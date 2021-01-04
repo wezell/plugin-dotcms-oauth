@@ -1,17 +1,14 @@
 package com.dotcms.osgi.oauth.util;
 
 
-import static com.dotcms.osgi.oauth.util.Constants.*;
-import static java.nio.charset.StandardCharsets.UTF_8;
+import static com.dotcms.osgi.oauth.util.Constants.EMPTY_SECRET;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Map;
 import java.util.Optional;
-import java.util.StringTokenizer;
 import java.util.TreeMap;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpSession;
 import org.scribe.builder.api.DefaultApi20;
 import org.scribe.exceptions.OAuthException;
 import org.scribe.model.OAuthConstants;
@@ -23,7 +20,6 @@ import org.scribe.model.Verifier;
 import org.scribe.oauth.OAuthService;
 import org.scribe.utils.OAuthEncoder;
 import org.scribe.utils.Preconditions;
-import com.dotcms.business.WrapInTransaction;
 import com.dotcms.enterprise.PasswordFactoryProxy;
 import com.dotcms.enterprise.de.qaware.heimdall.PasswordException;
 import com.dotcms.osgi.oauth.app.AppConfig;
@@ -37,9 +33,7 @@ import com.dotmarketing.util.Logger;
 import com.dotmarketing.util.UUIDGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
-import com.liferay.portal.auth.PrincipalThreadLocal;
 import com.liferay.portal.model.User;
-import com.liferay.portal.util.WebKeys;
 import io.vavr.control.Try;
 
 /**
@@ -57,6 +51,15 @@ public class OauthUtils {
 
     public static OauthUtils getInstance() {
         return OauthUtils.SingletonHolder.INSTANCE;
+    }
+    public void setNoCacheHeaders(HttpServletResponse response) {
+        // set no cache on the login page
+
+            Logger.info(this.getClass().getName(), "Login Flow, setting no-cache headers");
+            response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate"); 
+            response.setHeader("Pragma", "no-cache"); 
+            response.setDateHeader("Expires", 0); 
+
     }
 
 

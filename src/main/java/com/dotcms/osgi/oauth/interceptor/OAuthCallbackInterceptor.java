@@ -34,12 +34,9 @@ public class OAuthCallbackInterceptor implements WebInterceptor {
 
     public static final String CALLBACK_URL = "/api/v1/oauth2/callback";
 
-    private final User systemUser;
 
     public OAuthCallbackInterceptor() {
 
-
-        this.systemUser = APILocator.systemUser();
     }
 
     @Override
@@ -50,7 +47,7 @@ public class OAuthCallbackInterceptor implements WebInterceptor {
 
     @Override
     public Result intercept(HttpServletRequest request, HttpServletResponse response) {
-
+        OauthUtils.getInstance().setNoCacheHeaders(response);
         // If we already have a logged in user, continue
         boolean isLoggedInUser = APILocator.getLoginServiceAPI().isLoggedIn(request);
         if (isLoggedInUser) {

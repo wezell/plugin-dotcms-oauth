@@ -103,8 +103,8 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
         }
             
         // set no cache headers if needed
-        setNoCacheHeaders(uri,response);
-
+        OauthUtils.getInstance().setNoCacheHeaders(response);
+        
         // set FRONT_END_LOGIN to true if a front end login
         if(config.enableFrontend 
                         && request.getSession().getAttribute(Constants.FRONT_END_LOGIN)==null 
@@ -145,15 +145,6 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
     } // intercept.
 
     
-    private void setNoCacheHeaders(String uri, HttpServletResponse response) {
-        // set no cache on the login page
-        if(uri.equals("/dotAdmin/index.html") || uri.equals("/dotAdmin/")) {
-            Logger.info(this.getClass().getName(), "we got the index.html page!!!");
-            response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate"); 
-            response.setHeader("Pragma", "no-cache"); 
-            response.setDateHeader("Expires", 0); 
-        }
-    }
 
     
     private void sendForAuthorization(final HttpServletRequest request, final HttpServletResponse response,
