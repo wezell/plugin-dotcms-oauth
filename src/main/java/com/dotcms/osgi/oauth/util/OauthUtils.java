@@ -4,6 +4,7 @@ package com.dotcms.osgi.oauth.util;
 import static com.dotcms.osgi.oauth.util.Constants.EMPTY_SECRET;
 import java.util.Collection;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
@@ -28,6 +29,7 @@ import com.dotmarketing.business.APILocator;
 import com.dotmarketing.business.Role;
 import com.dotmarketing.cms.factories.PublicEncryptionFactory;
 import com.dotmarketing.exception.DotDataException;
+import com.dotmarketing.exception.DotRuntimeException;
 import com.dotmarketing.exception.DotSecurityException;
 import com.dotmarketing.util.Logger;
 import com.dotmarketing.util.UUIDGenerator;
@@ -94,22 +96,19 @@ public class OauthUtils {
         Preconditions.checkEmptyString(response,
                         "Response body is incorrect. Can't extract a token from an empty string");
 
-        try {
 
-            Map<String, Object> json = (Map<String, Object>) new JsonUtil().generate(response);
+        Map<String, Object> json = (Map<String, Object>) Try.of(() -> new JsonUtil().generate(response))
+                        .getOrElseThrow(e -> new DotRuntimeException("unable to get json", e));
 
-            if (json.containsKey(OAuthConstants.ACCESS_TOKEN)) {
-                String token = OAuthEncoder.decode(json.get(OAuthConstants.ACCESS_TOKEN).toString());
-                return new Token(token, EMPTY_SECRET, response);
-            } else {
-                throw new OAuthException(
-                                "Response body is incorrect. Can't extract a token from this: '" + response + "'",
-                                null);
-            }
-        } catch (Exception e) {
-            throw new OAuthException("Response body is incorrect. Can't extract a token from this: '" + response + "'",
-                            null);
+
+        if (json.containsKey(OAuthConstants.ACCESS_TOKEN)) {
+            String token = OAuthEncoder.decode(json.get(OAuthConstants.ACCESS_TOKEN).toString());
+            return new Token(token, EMPTY_SECRET, response);
         }
+        throw new OAuthException("Response body is incorrect. Can't extract a token from this: '" + response + "'",
+                        null);
+
+
     }
 
     
@@ -142,7 +141,7 @@ public class OauthUtils {
                             protectedCallResponse.getMessage()));
         }
 
-
+        // Case insensitive map (all lower case)
         Map<String, Object> jsonMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         jsonMap.putAll((Map<String, Object>) new JsonUtil().generate(protectedCallResponse.getBody()));
         
@@ -164,10 +163,10 @@ public class OauthUtils {
         // Create the user if does not exist
         if (user == null) {
             try {
-                Logger.info(this.getClass().getName(), "User not found, creating one!");
+                Logger.info(this.getClass().getName(), "User " + email + " not found, creating one!");
                 user = this.createUser(jsonMap);
             } catch (Exception e) {
-                Logger.warn(this.getClass().getName(), "Error creating user:" + e.getMessage(), e);
+                Logger.warn(this.getClass().getName(), "Error creating user " + email  + " : " + e.getMessage(), e);
                 throw new DotDataException(e.getMessage());
             }
         }
@@ -179,13 +178,13 @@ public class OauthUtils {
             setRoles(service, jsonMap, user);
 
             // Authenticate to dotCMS
-            Logger.info(this.getClass().getName(), "Doing login!");
+            Logger.info(this.getClass().getName(), "Doing OAuth login!");
 
             
             APILocator.getLoginServiceAPI().doCookieLogin(PublicEncryptionFactory.encryptString(user.getUserId()),
                             request, response, false);
 
-            Logger.info(this.getClass().getName(), "Finish back end login!");
+            Logger.info(this.getClass().getName(), "Finishing OAuth login!");
 
 
             // Keep the token in session
@@ -221,7 +220,7 @@ public class OauthUtils {
         // First lets handle the roles we need to add from the configuration file
         Logger.info(this.getClass().getName(), "User is active, adding roles!");
         
-        final String[] rolesToAdd = appConfig.getArrayValue("rolesToAdd");
+        final String[] rolesToAdd = appConfig.getArrayValue("role.extra");
         
         for (String roleKey : rolesToAdd) {
             this.addRole(user, roleKey);
@@ -279,7 +278,7 @@ public class OauthUtils {
 
         return (String) jsonMap.getOrDefault("email", 
                         jsonMap.getOrDefault("email_address", 
-                        jsonMap.getOrDefault("emailaddress", "unknown")));
+                        jsonMap.getOrDefault("emailaddress", null)));
 
     }
     
