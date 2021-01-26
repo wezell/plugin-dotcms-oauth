@@ -40,6 +40,9 @@ params:
       -
         label: "Ping Identity"
         value: "com.dotcms.osgi.oauth.provider.Ping20Api"
+      -
+        label: "Azure / ADFS (untested)"
+        value: "com.dotcms.osgi.oauth.provider.MicrosoftAzureActiveDirectoryApi"
 
   apiKey:
     label: "OAuth Api Key"
