@@ -9,6 +9,8 @@ import org.scribe.model.Response;
 import org.scribe.model.Token;
 import org.scribe.model.Verifier;
 import org.scribe.oauth.OAuth20ServiceImpl;
+import org.scribe.utils.OAuthEncoder;
+import com.dotmarketing.util.UUIDGenerator;
 
 /**
  * Microsoft Azure Active Directory Api
@@ -33,7 +35,9 @@ public class MicrosoftAzureActiveDirectoryApi extends DefaultApi20 {
     private static final String COMMON = "common";
     private static final String TOKEN_URI = "oauth2/token";
     private static final String AUTH_URI = "oauth2/authorize?resource=" + MSFT_GRAPH_URL;
-
+    
+    private final String state = new UUIDGenerator().generateUuid();
+    
     private static class InstanceHolder {
 
         private static final MicrosoftAzureActiveDirectoryApi INSTANCE = new MicrosoftAzureActiveDirectoryApi();
@@ -50,9 +54,30 @@ public class MicrosoftAzureActiveDirectoryApi extends DefaultApi20 {
 
     @Override
     public String getAuthorizationUrl(OAuthConfig config) {
-        return MSFT_LOGIN_URL + SLASH + COMMON + SLASH + AUTH_URI;
-    }
+        
 
+        
+        return String.format(MSFT_LOGIN_URL + SLASH + COMMON + SLASH + AUTH_URI 
+
+                        + "&client_id=%s"
+                        //+ "&client_secret=%s"
+                        + "&response_type=%s"
+                        //+ "&scope=%s"
+                        + "&redirect_uri=%s"
+                        + "&state=%s",
+                        OAuthEncoder.encode(config.getApiKey()),
+                //OAuthEncoder.encode(config.getApiSecret()),
+                        OAuthEncoder.encode(getResponseType()),
+                //OAuthEncoder.encode(config.getScope()),
+                        OAuthEncoder.encode(config.getCallback()),
+                state);
+                        
+                        
+                        
+    }
+    private String getResponseType() {
+        return "code";
+    }
     @Override
     public MicrosoftAzureActiveDirectoryService createService(OAuthConfig config) {
         return new MicrosoftAzureActiveDirectoryService(this, config);
@@ -72,33 +97,28 @@ public class MicrosoftAzureActiveDirectoryApi extends DefaultApi20 {
             this.config = config;
         }
 
+        
+        
+        
         @Override
         public Token getAccessToken(Token requestToken, Verifier verifier) {
             OAuthRequest request = new OAuthRequest(api.getAccessTokenVerb(), api.getAccessTokenEndpoint());
-            switch (api.getAccessTokenVerb()) {
-                case POST:
-                    request.addBodyParameter(OAuthConstants.CLIENT_ID, config.getApiKey());
-                    request.addBodyParameter(OAuthConstants.CLIENT_SECRET, config.getApiSecret());
-                    request.addBodyParameter(OAuthConstants.CODE, verifier.getValue());
-                    request.addBodyParameter(OAuthConstants.REDIRECT_URI, config.getCallback());
-                    request.addBodyParameter(GRANT_TYPE, GRANT_TYPE_AUTHORIZATION_CODE);
-                    if (config.hasScope()) {
-                        request.addBodyParameter(OAuthConstants.SCOPE, config.getScope());
-                    }
-                    
-                    break;
-                case GET:
-                default:
-                    request.addQuerystringParameter(OAuthConstants.CLIENT_ID, config.getApiKey());
-                    request.addQuerystringParameter(OAuthConstants.CLIENT_SECRET, config.getApiSecret());
+
+
                     request.addQuerystringParameter(OAuthConstants.CODE, verifier.getValue());
+                    request.addQuerystringParameter("grant_type", "authorization_code");
                     request.addQuerystringParameter(OAuthConstants.REDIRECT_URI, config.getCallback());
                     if (config.hasScope()) {
                         request.addQuerystringParameter(OAuthConstants.SCOPE, config.getScope());
                     }
-            }
-            Response response = request.send();
-            return api.getAccessTokenExtractor().extract(response.getBody());
+
+                    request.addHeader("Content-Type", "application/x-www-form-urlencoded");
+
+                    request.addBodyParameter(OAuthConstants.CLIENT_ID, config.getApiKey());
+                    request.addBodyParameter(OAuthConstants.CLIENT_SECRET, config.getApiSecret());
+
+                    Response response = request.send();
+                    return api.getAccessTokenExtractor().extract(response.getBody());
         }
     }
 }
