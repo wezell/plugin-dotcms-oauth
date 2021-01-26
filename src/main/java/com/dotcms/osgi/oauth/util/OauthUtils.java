@@ -120,7 +120,7 @@ public class OauthUtils {
      * @throws JsonProcessingException
      * @throws JsonMappingException
      */
-    public void authenticate(final HttpServletRequest request, final HttpServletResponse response,
+    public User authenticate(final HttpServletRequest request, final HttpServletResponse response,
                     final OAuthService service) throws DotDataException, JsonMappingException, JsonProcessingException {
 
         final boolean frontEndUser =  request.getSession().getAttribute(Constants.FRONT_END_LOGIN)!=null;
@@ -171,7 +171,13 @@ public class OauthUtils {
             }
         }
 
-        if (user.isActive()) {
+        if(!user.isActive()) {
+            
+            throw new DotRuntimeException("The user is not active in the system");
+        }
+        
+        
+
             setSystemRoles(user, frontEndUser);
             
             // Set the roles to the user
@@ -189,7 +195,8 @@ public class OauthUtils {
 
             // Keep the token in session
             request.getSession().setAttribute(OAuthConstants.ACCESS_TOKEN, accessToken.getToken());
-        }
+        
+        return user;
     } // authenticate.
 
 
