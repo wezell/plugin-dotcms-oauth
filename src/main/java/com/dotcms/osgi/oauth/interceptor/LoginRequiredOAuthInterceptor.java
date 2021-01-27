@@ -21,7 +21,6 @@ import com.dotcms.osgi.oauth.app.AppConfig;
 import com.dotcms.osgi.oauth.app.AppConfigThreadLocal;
 import com.dotcms.osgi.oauth.util.Constants;
 import com.dotcms.osgi.oauth.util.OauthUtils;
-import com.dotmarketing.business.APILocator;
 import com.dotmarketing.util.Logger;
 import com.google.common.collect.ImmutableList;
 import com.liferay.portal.model.User;
@@ -164,7 +163,9 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
     private void sendForAuthorization(final HttpServletRequest request, final HttpServletResponse response,
                     final OAuthService service, final DefaultApi20 apiProvider) throws IOException {
 
-        String retUrl = (String) request.getAttribute(JAVAX_SERVLET_FORWARD_REQUEST_URI);
+        String retUrl = request.getAttribute(JAVAX_SERVLET_FORWARD_REQUEST_URI) !=null 
+                        ?(String) request.getAttribute(JAVAX_SERVLET_FORWARD_REQUEST_URI)
+                        : request.getRequestURI();
 
         if (request.getSession().getAttribute(OAUTH_REDIRECT) != null) {
             retUrl = (String) request.getSession().getAttribute(OAUTH_REDIRECT);
