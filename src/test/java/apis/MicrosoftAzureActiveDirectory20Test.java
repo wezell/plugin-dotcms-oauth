@@ -16,7 +16,7 @@ import com.dotcms.osgi.oauth.provider.MicrosoftAzureActiveDirectoryApi;
 public class MicrosoftAzureActiveDirectory20Test {
 
   private static final String NETWORK_NAME = "Microsoft Azure Active Directory";
-  private static final String PROTECTED_RESOURCE_URL = "https://graph.microsoft.com/v1.0/me/memberOf";
+  private static final String PROTECTED_RESOURCE_URL = "https://graph.microsoft.com/v1.0/me";
 
   private MicrosoftAzureActiveDirectory20Test() {}
 
@@ -33,9 +33,11 @@ public class MicrosoftAzureActiveDirectory20Test {
                     .apiKey(clientId)
                     .apiSecret(clientSecret)
                     .provider(apiProvider)
-                    .scope("openid User.Read profile email https://graph.microsoft.com/v1.0/me/memberOf")
+                    .scope("openid+profile+email")
         .callback("http://localhost:8080/api/v1/oauth2/callback")
         .build();
+    
+    
     final Scanner in = new Scanner(System.in, "UTF-8");
     System.out.println("=== " + NETWORK_NAME + "'s OAuth Workflow ===");
     System.out.println();
@@ -51,6 +53,9 @@ public class MicrosoftAzureActiveDirectory20Test {
     System.out.print(">>");
     final String code = in.nextLine();
     System.out.println();
+    
+    
+    
     // Trade the Request Token and Verfier for the Access Token
     System.out.println("Trading the Request Token for an Access Token...");
     final Verifier verifier = new Verifier(code);
@@ -58,6 +63,9 @@ public class MicrosoftAzureActiveDirectory20Test {
     System.out.println("Got the Access Token!");
     System.out.println("(The raw response looks like this: " + accessToken.getRawResponse() + "')");
     System.out.println();
+    
+    
+    
     // Now let's go and ask for a protected resource!
     System.out.println("Now we're going to access a protected resource...");
     final OAuthRequest request = new OAuthRequest(Verb.GET, PROTECTED_RESOURCE_URL);

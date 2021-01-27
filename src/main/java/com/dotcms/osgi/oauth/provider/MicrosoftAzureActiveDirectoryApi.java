@@ -1,6 +1,8 @@
 package com.dotcms.osgi.oauth.provider;
 
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.scribe.builder.api.DefaultApi20;
@@ -16,7 +18,10 @@ import org.scribe.model.Verifier;
 import org.scribe.oauth.OAuth20ServiceImpl;
 import org.scribe.utils.OAuthEncoder;
 import org.scribe.utils.Preconditions;
+import com.dotmarketing.exception.DotRuntimeException;
 import com.dotmarketing.util.UUIDGenerator;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.vavr.control.Try;
 
 /**
  * Microsoft Azure Active Directory Api
@@ -34,16 +39,17 @@ import com.dotmarketing.util.UUIDGenerator;
  */
 public class MicrosoftAzureActiveDirectoryApi extends DefaultApi20 implements DotProvider {
 
-    private static final String MSFT_GRAPH_URL = "https://graph.microsoft.com";
+    private static final String MSFT_GRAPH_URL = "https://graph.microsoft.com/v1.0/me/messages";
 
-    private static final String MSFT_LOGIN_URL = "https://login.microsoftonline.com";
-    private static final String SLASH = "/";
-    private static final String COMMON = "common";
-    private static final String TOKEN_URI = "oauth2/token";
-    private static final String AUTH_URI = "oauth2/authorize?resource=" + MSFT_GRAPH_URL;
-    private static final String DEFAULT_SCOPE="openid User.Read profile email https://graph.microsoft.com/v1.0/me/memberOf";
+    private static final String MSFT_ENDPOINT = "https://login.microsoftonline.com";
+    private static final String MSFT_AUTHORIZATION = MSFT_ENDPOINT + "/common/oauth2/v2.0/authorize";
+    private static final String MSFT_TOKEN = MSFT_ENDPOINT + "/common/oauth2/v2.0/token";
+
+    private static final String MSFT_PROTECTED_RESOURCE="https://graph.microsoft.com/v1.0/me";
     
-    private final String state = new UUIDGenerator().generateUuid();
+    private static final String MSFT_GROUP_RESOURCE="https://graph.microsoft.com/v1.0/me/memberOf";
+    
+    private final String state = UUIDGenerator.generateUuid();
 
     private static class InstanceHolder {
 
@@ -56,7 +62,8 @@ public class MicrosoftAzureActiveDirectoryApi extends DefaultApi20 implements Do
 
     @Override
     public String getAccessTokenEndpoint() {
-        return MSFT_LOGIN_URL + SLASH + COMMON + SLASH + TOKEN_URI;
+
+        return MSFT_TOKEN;
     }
 
     @Override
@@ -67,36 +74,38 @@ public class MicrosoftAzureActiveDirectoryApi extends DefaultApi20 implements Do
                 Preconditions.checkEmptyString(response,
                                 "Response body is incorrect. Can't extract a token from an empty string");
 
-                String regex = "\"access_token\"\\s*:\\s*\"([^&\"]+)\"";
-                Matcher matcher = Pattern.compile(regex).matcher(response);
-                if (matcher.find()) {
-                    String token = OAuthEncoder.decode(matcher.group(1));
-                    return new Token(token, "", response);
-                } else {
-                    throw new OAuthException(
-                                    "Response body is incorrect. Can't extract a token from this: '" + response + "'",
-                                    null);
+
+                HashMap<String,String> map = Try.of(()->new ObjectMapper().readValue(response, HashMap.class)).getOrElseThrow(e->new DotRuntimeException("bad response: "+response, e));
+                if(map.containsKey("error")){
+                    throw new  OAuthException("bad response: "+response);
                 }
+
+                
+                return new Token(map.get("access_token"), "", response);
+                
+
             }
         };
 
     }
 
+    
+    
 
     @Override
     public String getAuthorizationUrl(OAuthConfig config) {
 
 
-        return String.format(MSFT_LOGIN_URL + SLASH + COMMON + SLASH + AUTH_URI
+        return String.format(MSFT_AUTHORIZATION
 
-                        + "&client_id=%s" 
+                        + "?client_id=%s" 
                         + "&response_type=%s" 
                         + "&scope=%s" 
                         + "&redirect_uri=%s" 
                         + "&state=%s",
                         OAuthEncoder.encode(config.getApiKey()), 
                         OAuthEncoder.encode(getResponseType()),
-                        OAuthEncoder.encode(config.getScope()), 
+                        config.getScope(), 
                         OAuthEncoder.encode(config.getCallback()), 
                         state);
 
@@ -136,14 +145,13 @@ public class MicrosoftAzureActiveDirectoryApi extends DefaultApi20 implements Do
 
 
             request.addHeader("Content-Type", "application/x-www-form-urlencoded");
-
-            request.addBodyParameter(OAuthConstants.CODE, verifier.getValue());
-            request.addBodyParameter("grant_type", "authorization_code");
-            request.addBodyParameter(OAuthConstants.REDIRECT_URI, config.getCallback());
-
-
             request.addBodyParameter(OAuthConstants.CLIENT_ID, config.getApiKey());
             request.addBodyParameter(OAuthConstants.CLIENT_SECRET, config.getApiSecret());
+            request.addBodyParameter(OAuthConstants.CODE, verifier.getValue());
+            request.addBodyParameter(OAuthConstants.REDIRECT_URI, config.getCallback());
+            request.addBodyParameter("grant_type", "authorization_code");
+            
+
 
             Response response = request.send();
             return api.getAccessTokenExtractor().extract(response.getBody());
@@ -153,6 +161,7 @@ public class MicrosoftAzureActiveDirectoryApi extends DefaultApi20 implements Do
         @Override
         public void signRequest(Token accessToken, OAuthRequest request) {
             request.addHeader("Authorization", "Bearer " + accessToken.getToken());
+            request.addHeader("Accept", "*/*");
         }
 
     }
