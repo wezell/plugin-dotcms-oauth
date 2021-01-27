@@ -6,8 +6,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.Optional;
 import org.scribe.builder.api.DefaultApi20;
 import org.scribe.exceptions.OAuthException;
 import org.scribe.extractors.AccessTokenExtractor;
@@ -50,7 +49,7 @@ public class MicrosoftAzureActiveDirectoryApi extends DefaultApi20 implements Do
     private static final String MSFT_ENDPOINT = "https://login.microsoftonline.com";
     private static final String MSFT_AUTHORIZATION = MSFT_ENDPOINT + "/common/oauth2/v2.0/authorize";
     private static final String MSFT_TOKEN = MSFT_ENDPOINT + "/common/oauth2/v2.0/token";
-    private static final String MSFT_LOGOUT = MSFT_ENDPOINT + "/common/oauth2/logout";
+    private static final String MSFT_LOGOUT = MSFT_ENDPOINT + "/common/oauth2/v2.0/logout";
     
     public static final String MSFT_PROTECTED_RESOURCE="https://graph.microsoft.com/v1.0/me";
     
@@ -182,13 +181,11 @@ public class MicrosoftAzureActiveDirectoryApi extends DefaultApi20 implements Do
 
 
             final String groupPrefix = config().getGroupPrefix();
-            final String apiToken = config().apiKey;
-            final String groupsResourceUrl = String.format(config().groupResource, user.getUserId());
+            final Token apiToken = (Token) userJsonResponse.get("access_token");
+            final String groupsResourceUrl = MSFT_GROUP_RESOURCE;
 
             final OAuthRequest oauthGroupsRequest = new OAuthRequest(Verb.GET, groupsResourceUrl);
-            oauthGroupsRequest.addHeader("Authorization", "SSWS " + apiToken);
-            oauthGroupsRequest.addHeader("Content-Type", "application/json");
-            oauthGroupsRequest.addHeader("Accept", "application/json");
+            this.signRequest(apiToken,oauthGroupsRequest);
 
             final Collection<String> groups = new ArrayList<>();
             Response groupsCallResponse = null;
@@ -225,7 +222,7 @@ public class MicrosoftAzureActiveDirectoryApi extends DefaultApi20 implements Do
 
             } catch (Exception e) {
                 Logger.warn(Okta20Api.class.getName(), String.format("Unable to get groups in remote authentication server [%s] [%s]",
-                                groupsResourceUrl, groupsCallResponse.getMessage()), e);
+                                groupsResourceUrl, groupsCallResponse.getMessage()));
             }
 
             return groups;
@@ -235,27 +232,37 @@ public class MicrosoftAzureActiveDirectoryApi extends DefaultApi20 implements Do
         public void revokeToken(String token) {
 
             // Now lets try to invalidate the token
-            final String revokeURL = MSFT_LOGOUT;
 
-            if (null != revokeURL && !revokeURL.isEmpty()) {
+            String callback = config.getCallback();
 
-                final OAuthRequest revokeRequest = new OAuthRequest(Verb.POST, revokeURL);
-                revokeRequest.addQuerystringParameter("token", token);
-                revokeRequest.addQuerystringParameter("token_type_hint", OAuthConstants.ACCESS_TOKEN);
-                revokeRequest.addQuerystringParameter(OAuthConstants.CLIENT_ID, config.getApiKey());
-                revokeRequest.addQuerystringParameter(OAuthConstants.CLIENT_SECRET, config.getApiSecret());
 
-                final Response revokeCallResponse = revokeRequest.send();
+            final OAuthRequest revokeRequest = new OAuthRequest(Verb.GET, MSFT_LOGOUT);
+            revokeRequest.addQuerystringParameter("client_id", config.getApiKey());
+            revokeRequest.addQuerystringParameter("post_logout_redirect_uri", callback);
 
-                if (!revokeCallResponse.isSuccessful()) {
-                    Logger.error(this.getClass().getName(), String.format("Unable to revoke access token [%s] [%s] [%s]",
-                                    revokeURL, token, revokeCallResponse.getMessage()));
-                } else {
-                    Logger.info(this.getClass().getName(), "Successfully revoked access token");
-                    Logger.info(this.getClass().getName(), revokeCallResponse.getBody());
-                }
+            final Response revokeCallResponse = revokeRequest.send();
 
+            if (!revokeCallResponse.isSuccessful()) {
+                Logger.error(this.getClass().getName(), String.format("Unable to revoke access token [%s] [%s] [%s]",
+                                MSFT_LOGOUT, token, revokeCallResponse.getMessage()));
+            } else {
+                Logger.info(this.getClass().getName(), "Successfully revoked access token");
+                Logger.info(this.getClass().getName(), revokeCallResponse.getBody());
             }
+
+
+        }
+        @Override
+        public Optional<String> getLogoutClientRedirect(){
+            String callback = config.getCallback();
+
+
+            final OAuthRequest revokeRequest = new OAuthRequest(Verb.GET, MSFT_LOGOUT);
+            revokeRequest.addQuerystringParameter("client_id", config.getApiKey());
+            revokeRequest.addQuerystringParameter("post_logout_redirect_uri", callback);
+
+            return Optional.ofNullable(revokeRequest.getCompleteUrl());
+            
         }
         
         

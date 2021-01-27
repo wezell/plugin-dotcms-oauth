@@ -4,6 +4,7 @@ import static com.dotcms.osgi.oauth.util.OAuthPropertyBundle.getProperty;
 import static com.dotcms.osgi.oauth.util.Constants.OAUTH_PROVIDER;
 import java.io.IOException;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -12,6 +13,7 @@ import org.scribe.builder.ServiceBuilder;
 import org.scribe.builder.api.DefaultApi20;
 import org.scribe.model.OAuthConstants;
 import org.scribe.oauth.OAuthService;
+import com.dotcms.concurrent.DotConcurrentFactory;
 import com.dotcms.filters.interceptor.Result;
 import com.dotcms.filters.interceptor.WebInterceptor;
 import com.dotcms.osgi.oauth.app.AppConfig;
@@ -54,9 +56,14 @@ public class LogoutOAuthInterceptor implements WebInterceptor {
     
     
 
-    private Result _intercept(HttpServletRequest request, HttpServletResponse response) throws IOException {
+    private Result _intercept(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
 
 
+        String uri = request.getRequestURI();
+        Logger.info(this.getClass().getName(), "intercepting: " + uri);
+        
+        
+        
 
         final HttpSession session = request.getSession(false);
         final Optional<AppConfig> config = AppConfig.config(request);
@@ -74,15 +81,11 @@ public class LogoutOAuthInterceptor implements WebInterceptor {
         
 
         
-        com.liferay.util.CookieUtil.deleteCookie(request, response, "access_token");
-        
+
 
         // Check if there is a token to invalidate
         final Object accessTokenObject = session.getAttribute(OAuthConstants.ACCESS_TOKEN);
-        if(null == accessTokenObject) {
-            return this.logout(request, response);
-        }
-    
+
 
 
         // Look for the provider to use
@@ -90,9 +93,6 @@ public class LogoutOAuthInterceptor implements WebInterceptor {
         if (apiProvider.isPresent()) {
 
             final String accessToken = (String) accessTokenObject;
-
-
-            final String providerName = apiProvider.getClass().getSimpleName();
             final String apiKey = config.get().apiKey;
             final String apiSecret =new String(config.get().apiSecret);
 
@@ -100,6 +100,7 @@ public class LogoutOAuthInterceptor implements WebInterceptor {
                             new ServiceBuilder()
                             .apiKey(apiKey)
                             .apiSecret(apiSecret)
+                            .callback(config.get().dotCMSCallBackUrl)
                             .provider(apiProvider.get())
                             .build();
 
@@ -107,14 +108,24 @@ public class LogoutOAuthInterceptor implements WebInterceptor {
             if (service instanceof DotService) {
                 ((DotService) service).revokeToken(accessToken);
                 ((DotService) service).revokeToken(cookieToken);
-                
+                Optional<String> providerLogout = ((DotService) service).getLogoutClientRedirect();
+                if(providerLogout.isPresent()) {
+                    response.sendRedirect(providerLogout.get());
+                    response.getWriter().close();
+                    
+                    DotConcurrentFactory.getInstance().getSubmitter().delay(()->{Try.run(()->APILocator.getLoginServiceAPI().doActionLogout(request, response));},5,TimeUnit.SECONDS);
+                    
+                    return Result.SKIP_NO_CHAIN;
+                    
+                }
             }
 
         } 
         // Cleaning up the session
         session.removeAttribute(OAuthConstants.ACCESS_TOKEN);
         session.removeAttribute(OAUTH_PROVIDER);
-
+        com.liferay.util.CookieUtil.deleteCookie(request, response, "access_token");
+        
         
         
 

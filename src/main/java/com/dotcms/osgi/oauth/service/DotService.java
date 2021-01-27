@@ -2,6 +2,7 @@ package com.dotcms.osgi.oauth.service;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 import com.dotmarketing.util.UtilMethods;
 import com.liferay.portal.model.User;
 
@@ -51,6 +52,10 @@ public interface DotService {
                         jsonMap.getOrDefault("surname", 
                         "unknown")))));
 
+    }
+
+    default Optional<String> getLogoutClientRedirect(){
+        return Optional.empty();
     }
     
 

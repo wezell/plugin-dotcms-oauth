@@ -7,7 +7,6 @@
  */
 package com.dotcms.osgi.oauth.interceptor;
 
-import static com.dotcms.osgi.oauth.util.Constants.OAUTH_API_PROVIDER;
 import static com.dotcms.osgi.oauth.util.Constants.OAUTH_PROVIDER;
 import static com.dotcms.osgi.oauth.util.Constants.OAUTH_REDIRECT;
 import static com.dotcms.osgi.oauth.util.Constants.OAUTH_SERVICE;
@@ -29,6 +28,7 @@ import com.dotcms.osgi.oauth.util.OauthUtils;
 import com.dotmarketing.business.APILocator;
 import com.dotmarketing.util.Logger;
 import com.liferay.portal.model.User;
+import com.liferay.portal.util.PortalUtil;
 import io.vavr.control.Try;
 
 public class OAuthCallbackInterceptor implements WebInterceptor {
@@ -59,10 +59,12 @@ public class OAuthCallbackInterceptor implements WebInterceptor {
    
     private Result _intercept(HttpServletRequest request, HttpServletResponse response) {
         OauthUtils.getInstance().setNoCacheHeaders(response);
-        // If we already have a logged in user, continue
-        boolean isLoggedInUser = APILocator.getLoginServiceAPI().isLoggedIn(request);
-        if (isLoggedInUser) {
-            return Result.NEXT;
+        
+        Logger.info(this.getClass().getName(), "intercepting: " + request.getRequestURI());
+        User user = PortalUtil.getUser(request);
+
+        if (null != user) {
+            return redirectLoggedInUser(request, response);
         }
 
 
@@ -71,14 +73,17 @@ public class OAuthCallbackInterceptor implements WebInterceptor {
 
         // if we have no oauth configured, continue
         if (!configOpt.isPresent()) {
-            return Result.NEXT;
+            Logger.warn(this.getClass().getName(), "No OAuthConfig found for :" + requestedURI);
+            Try.run(() -> response.sendRedirect("/?error=no+oauth+config"));
+            return Result.SKIP_NO_CHAIN;
         }
         final AppConfig config = configOpt.get();
 
         final String responseCode = request.getParameter(OAuthConstants.CODE);
         if (null == responseCode) {
             Logger.info(this.getClass().getName(), "No Response Code param found, continuing");
-            return Result.NEXT;
+            Try.run(() -> response.sendRedirect("/?error=no+oauth+config"));
+            return Result.SKIP_NO_CHAIN;
         }
         
         OauthUtils.getInstance().setNoCacheHeaders(response);
@@ -86,7 +91,9 @@ public class OAuthCallbackInterceptor implements WebInterceptor {
         
         final Optional<DefaultApi20> apiProviderOpt = OauthUtils.getInstance().getAPIProvider(config);
         if (!apiProviderOpt.isPresent()) {
-            return Result.NEXT;
+            Logger.warn(this.getClass().getName(), "No OAuth API Provider found for :" + requestedURI);
+            Try.run(() -> response.sendRedirect("/?error=no+oauth+api+provider"));
+            return Result.SKIP_NO_CHAIN;
             
         }
         try {
@@ -105,11 +112,19 @@ public class OAuthCallbackInterceptor implements WebInterceptor {
                             .provider(apiProvider)
                             .scope(scope)
                             .build();
-            final String providerName = apiProvider.getClass().getSimpleName();
+
             HttpSession session = request.getSession(true);
             final String authorizationUrl = (String) session.getAttribute(OAUTH_REDIRECT);
+            
             // With the authentication code lets try to authenticate to dotCMS
-            User user= OauthUtils.getInstance().authenticate(request, response, service);
+            user= Try.of(()->OauthUtils.getInstance().authenticate(request, response, service))
+                            .onFailure(e->Logger.warn(this.getClass().getName(), e.getMessage(), e))
+                            .getOrNull();
+            
+            if(user==null) {
+                Try.run(() -> response.sendRedirect("/?error=oauth+user+is+null"));
+                return Result.SKIP_NO_CHAIN;
+            }
 
             session = request.getSession(true);
 
@@ -121,11 +136,8 @@ public class OAuthCallbackInterceptor implements WebInterceptor {
             session.setAttribute(OAUTH_PROVIDER, apiProvider.getClass().getCanonicalName());
             if (authorizationUrl == null) {
                 return this.redirectLoggedInUser(request, response);
-                
             }
 
-            
-            
             
             response.sendRedirect(authorizationUrl);
             return Result.SKIP_NO_CHAIN; // needs to stop the filter chain.
@@ -141,16 +153,31 @@ public class OAuthCallbackInterceptor implements WebInterceptor {
 
 
 
-    private Result redirectLoggedInUser(HttpServletRequest request, HttpServletResponse response) throws IOException {
+    /***
+     * This redirects the user after they have been logged in.
+     * It requires a META refresh rather than a redirect because the users
+     * session id might have changed and that change does not get picked up in 
+     * a redirect
+     * @param request
+     * @param response
+     * @return
+     */
+    private Result redirectLoggedInUser(HttpServletRequest request, HttpServletResponse response)  {
+        
+        User user = PortalUtil.getUser(request);
+        
+        
+        final String redirect = user==null 
+                        ? "/?no-user-found-after-oauth"  
+                        : user.isFrontendUser()
+                            ? "/?already-logged-in"
+                            : "/dotAdmin/?r=" + System.currentTimeMillis();
+        
+        Logger.info(this.getClass().getName(), "Already logged in, redirecting to " + redirect);
 
-        if (request.getSession().getAttribute(Constants.FRONT_END_LOGIN) != null) {
-            Logger.info(this.getClass().getName(), "Already logged in, redirecting home");
-            response.sendRedirect("/?already-logged-in");
-            return Result.SKIP_NO_CHAIN;
-        }
-
-        Logger.info(this.getClass().getName(), "Already logged in, redirecting to /dotAdmin");
-        response.sendRedirect("/dotAdmin/");
+        Try.run(() -> 
+            response.getWriter().println("<html><head><meta http-equiv=\"refresh\" content=\"0;URL='" + redirect + "'\" /></head><body></body></html>")
+        );
         return Result.SKIP_NO_CHAIN;
     }
 

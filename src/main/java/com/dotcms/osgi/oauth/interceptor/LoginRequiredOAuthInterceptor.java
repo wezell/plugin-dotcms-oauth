@@ -24,6 +24,8 @@ import com.dotcms.osgi.oauth.util.OauthUtils;
 import com.dotmarketing.business.APILocator;
 import com.dotmarketing.util.Logger;
 import com.google.common.collect.ImmutableList;
+import com.liferay.portal.model.User;
+import com.liferay.portal.util.PortalUtil;
 
 /**
  * This interceptor is used for handle the OAuth login check on DotCMS BE.
@@ -78,16 +80,17 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
 
     private Result _intercept(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
 
-
+        final String uri = request.getRequestURI();
         // If we already have a logged in user, continue
-        boolean isLoggedInUser = APILocator.getLoginServiceAPI().isLoggedIn(request);
-        if (isLoggedInUser) {
+        User user = PortalUtil.getUser(request);
+
+        if (null != user) {
             return Result.NEXT;
         }
         
         
         Optional<AppConfig> configOpt = AppConfig.config(request);
-        final String uri = request.getRequestURI();
+
         
         // if we have no oauth configured, continue
         if(!configOpt.isPresent()) {

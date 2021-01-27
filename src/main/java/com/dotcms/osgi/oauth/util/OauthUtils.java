@@ -37,6 +37,7 @@ import com.dotmarketing.util.UtilMethods;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.liferay.portal.model.User;
+import com.liferay.portal.util.PortalUtil;
 import io.vavr.control.Try;
 
 /**
@@ -124,6 +125,12 @@ public class OauthUtils {
     public User authenticate(final HttpServletRequest request, final HttpServletResponse response,
                     final OAuthService service) throws DotDataException, JsonMappingException, JsonProcessingException {
 
+        if(PortalUtil.getUser(request)!=null) {
+            return PortalUtil.getUser(request);
+        }
+        
+        
+        
         final boolean frontEndUser =  request.getSession().getAttribute(Constants.FRONT_END_LOGIN)!=null;
         AppConfig appConfig = AppConfig.config().get();
         
@@ -177,7 +184,7 @@ public class OauthUtils {
             throw new DotRuntimeException("The user is not active in the system");
         }
         
-        
+        jsonMap.put("access_token", accessToken);
 
         setSystemRoles(user, frontEndUser);
         
@@ -293,7 +300,17 @@ public class OauthUtils {
         
 
     }
-    
+    private String getSubject(Map<String, Object> jsonMap) {
+
+        String email= (String) jsonMap.getOrDefault("email", 
+                        jsonMap.getOrDefault("email_address", 
+                        jsonMap.getOrDefault("emailaddress", 
+                        jsonMap.getOrDefault("userPrincipalName", null))));
+        
+        return UtilMethods.isValidEmail(email) ? email : null;
+        
+
+    }
     
     private String getFirstName(Map<String, Object> jsonMap) {
         return (String) jsonMap.getOrDefault("first_name", 
