@@ -41,11 +41,11 @@ params:
         label: "Ping Identity"
         value: "com.dotcms.osgi.oauth.provider.Ping20Api"
       -
-        label: "Azure / ADFS (untested)"
+        label: "Azure / ADFS"
         value: "com.dotcms.osgi.oauth.provider.MicrosoftAzureActiveDirectoryApi"
 
   apiKey:
-    label: "OAuth Api Key"
+    label: "OAuth Api/Client Key"
     value: ""
     hidden: false
     type: "STRING"
@@ -58,6 +58,14 @@ params:
     hidden: true
     type: "STRING"
     hint: "This is your API Secret used to authenticate with your auth provider"
+    required: true
+
+  dotCMSCallBackUrl:
+    label: "Callback URL (http|https://{hostname}{:port})"
+    value: "http://localhost:8080"
+    hidden: false
+    type: "STRING"
+    hint: "The URL to this host - the Oauth server will redirect the client here"
     required: true
 
   scope:

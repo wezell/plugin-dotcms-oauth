@@ -1,7 +1,10 @@
 package com.dotcms.osgi.oauth.provider;
 
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -18,9 +21,13 @@ import org.scribe.model.Verifier;
 import org.scribe.oauth.OAuth20ServiceImpl;
 import org.scribe.utils.OAuthEncoder;
 import org.scribe.utils.Preconditions;
+import com.dotcms.osgi.oauth.service.DotService;
+import com.dotcms.osgi.oauth.util.JsonUtil;
 import com.dotmarketing.exception.DotRuntimeException;
+import com.dotmarketing.util.Logger;
 import com.dotmarketing.util.UUIDGenerator;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.liferay.portal.model.User;
 import io.vavr.control.Try;
 
 /**
@@ -39,13 +46,13 @@ import io.vavr.control.Try;
  */
 public class MicrosoftAzureActiveDirectoryApi extends DefaultApi20 implements DotProvider {
 
-    private static final String MSFT_GRAPH_URL = "https://graph.microsoft.com/v1.0/me/messages";
 
     private static final String MSFT_ENDPOINT = "https://login.microsoftonline.com";
     private static final String MSFT_AUTHORIZATION = MSFT_ENDPOINT + "/common/oauth2/v2.0/authorize";
     private static final String MSFT_TOKEN = MSFT_ENDPOINT + "/common/oauth2/v2.0/token";
-
-    private static final String MSFT_PROTECTED_RESOURCE="https://graph.microsoft.com/v1.0/me";
+    private static final String MSFT_LOGOUT = MSFT_ENDPOINT + "/common/oauth2/logout";
+    
+    public static final String MSFT_PROTECTED_RESOURCE="https://graph.microsoft.com/v1.0/me";
     
     private static final String MSFT_GROUP_RESOURCE="https://graph.microsoft.com/v1.0/me/memberOf";
     
@@ -89,8 +96,6 @@ public class MicrosoftAzureActiveDirectoryApi extends DefaultApi20 implements Do
 
     }
 
-    
-    
 
     @Override
     public String getAuthorizationUrl(OAuthConfig config) {
@@ -128,7 +133,7 @@ public class MicrosoftAzureActiveDirectoryApi extends DefaultApi20 implements Do
     }
 
 
-    public class MicrosoftAzureActiveDirectoryService extends OAuth20ServiceImpl {
+    public class MicrosoftAzureActiveDirectoryService extends OAuth20ServiceImpl  implements DotService {
         private DefaultApi20 api;
         private OAuthConfig config;
 
@@ -164,5 +169,95 @@ public class MicrosoftAzureActiveDirectoryApi extends DefaultApi20 implements Do
             request.addHeader("Accept", "*/*");
         }
 
+ 
+        
+        
+        
+        /**
+         * Custom implementation (extra call) in order to get roles/groups from the Okta server as the
+         * request that returns the user data does not have the user groups.
+         */
+        @Override
+        public Collection<String> getGroups(User user, final Map<String, Object> userJsonResponse) {
+
+
+            final String groupPrefix = config().getGroupPrefix();
+            final String apiToken = config().apiKey;
+            final String groupsResourceUrl = String.format(config().groupResource, user.getUserId());
+
+            final OAuthRequest oauthGroupsRequest = new OAuthRequest(Verb.GET, groupsResourceUrl);
+            oauthGroupsRequest.addHeader("Authorization", "SSWS " + apiToken);
+            oauthGroupsRequest.addHeader("Content-Type", "application/json");
+            oauthGroupsRequest.addHeader("Accept", "application/json");
+
+            final Collection<String> groups = new ArrayList<>();
+            Response groupsCallResponse = null;
+            try {
+                groupsCallResponse = oauthGroupsRequest.send();
+                if (!groupsCallResponse.isSuccessful()) {
+
+                    Logger.error(this.getClass().getName(), String.format("Unable to connect to end point [%s] [%s]",
+                                    groupsResourceUrl, groupsCallResponse.getMessage()));
+                    return groups;
+                }
+
+
+                // Parse the response in order to get the user data
+                final List<Map<String, Object>> groupsJsonResponse =
+                                (List<Map<String, Object>>) new JsonUtil().generate(groupsCallResponse.getBody());
+
+                groupsJsonResponse.stream().filter(m -> m.containsKey("profile")).forEach(m -> {
+                    final Map<String, Object> profile = (Map<String, Object>) m.get("profile");
+                    final String group = (String) profile.get("name");
+                    if (null != group) {
+
+                        // Verify if we need to filter by prefix
+                        if (null != groupPrefix && !groupPrefix.isEmpty()) {
+                            if (group.startsWith(groupPrefix)) {
+                                groups.add(group);
+                            }
+                        } else {
+                            groups.add(group);
+                        }
+                    }
+                });
+
+
+            } catch (Exception e) {
+                Logger.warn(Okta20Api.class.getName(), String.format("Unable to get groups in remote authentication server [%s] [%s]",
+                                groupsResourceUrl, groupsCallResponse.getMessage()), e);
+            }
+
+            return groups;
+        }
+
+        @Override
+        public void revokeToken(String token) {
+
+            // Now lets try to invalidate the token
+            final String revokeURL = MSFT_LOGOUT;
+
+            if (null != revokeURL && !revokeURL.isEmpty()) {
+
+                final OAuthRequest revokeRequest = new OAuthRequest(Verb.POST, revokeURL);
+                revokeRequest.addQuerystringParameter("token", token);
+                revokeRequest.addQuerystringParameter("token_type_hint", OAuthConstants.ACCESS_TOKEN);
+                revokeRequest.addQuerystringParameter(OAuthConstants.CLIENT_ID, config.getApiKey());
+                revokeRequest.addQuerystringParameter(OAuthConstants.CLIENT_SECRET, config.getApiSecret());
+
+                final Response revokeCallResponse = revokeRequest.send();
+
+                if (!revokeCallResponse.isSuccessful()) {
+                    Logger.error(this.getClass().getName(), String.format("Unable to revoke access token [%s] [%s] [%s]",
+                                    revokeURL, token, revokeCallResponse.getMessage()));
+                } else {
+                    Logger.info(this.getClass().getName(), "Successfully revoked access token");
+                    Logger.info(this.getClass().getName(), revokeCallResponse.getBody());
+                }
+
+            }
+        }
+        
+        
     }
 }

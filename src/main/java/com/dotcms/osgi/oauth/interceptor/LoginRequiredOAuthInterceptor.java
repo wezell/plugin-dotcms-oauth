@@ -18,6 +18,7 @@ import org.scribe.oauth.OAuthService;
 import com.dotcms.filters.interceptor.Result;
 import com.dotcms.filters.interceptor.WebInterceptor;
 import com.dotcms.osgi.oauth.app.AppConfig;
+import com.dotcms.osgi.oauth.app.AppConfigThreadLocal;
 import com.dotcms.osgi.oauth.util.Constants;
 import com.dotcms.osgi.oauth.util.OauthUtils;
 import com.dotmarketing.business.APILocator;
@@ -58,7 +59,6 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
                         .toArray(new String[0]);
 
     }
-
     /**
      * This login required will be used for the BE, when the user is on BE, is not logged in and the by
      * pass native=true is not in the query string will redirect to the OAUTH Servlet in order to do the
@@ -66,6 +66,17 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
      */
     @Override
     public Result intercept(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
+
+        try {
+            return _intercept(request, response);
+        }
+        finally {
+            AppConfigThreadLocal.INSTANCE.clearConfig();
+        }
+    }
+    
+
+    private Result _intercept(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
 
 
         // If we already have a logged in user, continue
@@ -118,7 +129,7 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
         
         if (apiProviderOpt.isPresent()) {
             final DefaultApi20 apiProvider = apiProviderOpt.get();
-            final String callbackHost = this.getCallbackHost(request);
+            final String callbackHost = config.dotCMSCallBackUrl;
             final String apiKey = config.apiKey;
             final String apiSecret = new String(config.apiSecret);
             final String scope =String.join("+", config.scope);
@@ -169,9 +180,6 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
         response.sendRedirect(authorizationUrl);
     }
 
-    private String getCallbackHost(final HttpServletRequest request) {
 
-        return "https://" + request.getServerName() ;
-    }
 
 } // BackEndLoginRequiredOAuthInterceptor.

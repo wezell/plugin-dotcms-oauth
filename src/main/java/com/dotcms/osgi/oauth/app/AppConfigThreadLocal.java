@@ -18,16 +18,19 @@ public class AppConfigThreadLocal implements Serializable {
      * @return {@link AppConfig}
      */
     public Optional<AppConfig> getConfig() {
-
         return Optional.ofNullable(configLocal.get());
-
     }
-
-
 
     public void setConfig(final Optional<AppConfig> config) {
 
         configLocal.set(config !=null && config.isPresent() ? config.get() : null);
     }
+    
+    public void clearConfig() {
+
+        configLocal.remove();
+    }
+    
+    
 
 }

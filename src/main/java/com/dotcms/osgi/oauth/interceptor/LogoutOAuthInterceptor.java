@@ -15,6 +15,7 @@ import org.scribe.oauth.OAuthService;
 import com.dotcms.filters.interceptor.Result;
 import com.dotcms.filters.interceptor.WebInterceptor;
 import com.dotcms.osgi.oauth.app.AppConfig;
+import com.dotcms.osgi.oauth.app.AppConfigThreadLocal;
 import com.dotcms.osgi.oauth.service.DotService;
 import com.dotcms.osgi.oauth.util.OauthUtils;
 import com.dotmarketing.business.APILocator;
@@ -39,8 +40,21 @@ public class LogoutOAuthInterceptor implements WebInterceptor {
         return new String[] {"/api/v1/logout", "/dotCMS/logout", "/dotAdmin/logout"};
     }
 
+    
     @Override
-    public Result intercept(HttpServletRequest request, HttpServletResponse response) throws IOException {
+    public Result intercept(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
+
+        try {
+            return _intercept(request, response);
+        }
+        finally {
+            AppConfigThreadLocal.INSTANCE.clearConfig();
+        }
+    }
+    
+    
+
+    private Result _intercept(HttpServletRequest request, HttpServletResponse response) throws IOException {
 
 
 

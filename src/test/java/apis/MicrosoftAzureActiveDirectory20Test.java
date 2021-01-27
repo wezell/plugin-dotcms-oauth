@@ -15,8 +15,6 @@ import com.dotcms.osgi.oauth.provider.MicrosoftAzureActiveDirectoryApi;
 
 public class MicrosoftAzureActiveDirectory20Test {
 
-  private static final String NETWORK_NAME = "Microsoft Azure Active Directory";
-  private static final String PROTECTED_RESOURCE_URL = "https://graph.microsoft.com/v1.0/me";
 
   private MicrosoftAzureActiveDirectory20Test() {}
 
@@ -39,7 +37,7 @@ public class MicrosoftAzureActiveDirectory20Test {
     
     
     final Scanner in = new Scanner(System.in, "UTF-8");
-    System.out.println("=== " + NETWORK_NAME + "'s OAuth Workflow ===");
+    System.out.println("=== " +apiProvider.getClass().getSimpleName() + "'s OAuth Workflow ===");
     System.out.println();
     // Obtain the Authorization URL
     System.out.println("Fetching the Authorization URL...");
@@ -68,7 +66,7 @@ public class MicrosoftAzureActiveDirectory20Test {
     
     // Now let's go and ask for a protected resource!
     System.out.println("Now we're going to access a protected resource...");
-    final OAuthRequest request = new OAuthRequest(Verb.GET, PROTECTED_RESOURCE_URL);
+    final OAuthRequest request = new OAuthRequest(Verb.GET, MicrosoftAzureActiveDirectoryApi.MSFT_PROTECTED_RESOURCE);
     service.signRequest(accessToken, request);
     final Response protectedCallResponse = request.send();
     System.out.println("Got it! Lets see what we found...");
