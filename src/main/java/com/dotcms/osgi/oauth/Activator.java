@@ -34,6 +34,10 @@ public class Activator extends GenericBundleActivator {
         this.initializeServices(context);
         this.registerViewToolService(context, new OAuthToolInfo());
 
+        Config.setProperty("PREVENT_SESSION_FIXATION_ON_LOGIN", false);
+        
+        
+        
         
         new AppUtil().copyAppYml();
 

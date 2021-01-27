@@ -25,6 +25,7 @@ import com.dotmarketing.util.Logger;
 import com.google.common.collect.ImmutableList;
 import com.liferay.portal.model.User;
 import com.liferay.portal.util.PortalUtil;
+import io.vavr.control.Try;
 
 /**
  * This interceptor is used for handle the OAuth login check on DotCMS BE.
@@ -181,7 +182,19 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
 
         final String authorizationUrl = service.getAuthorizationUrl(EMPTY_TOKEN);
         Logger.info(this.getClass().getName(), "Redirecting for authentication to: " + authorizationUrl);
-        response.sendRedirect(authorizationUrl);
+
+        System.err.println("Prelogin Session Id: " + request.getSession().getId());
+        
+        
+        
+        Try.run(() -> {
+            response.getWriter().println("<html><head><meta http-equiv=\"refresh\" content=\"0;URL='" + authorizationUrl + "'\" /></head><body></body></html>");
+            response.getWriter().close();
+        }
+        );
+
+        
+        //response.sendRedirect(authorizationUrl);
     }
 
 

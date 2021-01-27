@@ -113,7 +113,15 @@ public class LogoutOAuthInterceptor implements WebInterceptor {
                     response.sendRedirect(providerLogout.get());
                     response.getWriter().close();
                     
-                    DotConcurrentFactory.getInstance().getSubmitter().delay(()->{Try.run(()->APILocator.getLoginServiceAPI().doActionLogout(request, response));},5,TimeUnit.SECONDS);
+                    DotConcurrentFactory.getInstance().getSubmitter()
+                        .delay(()->{
+                            Try.run(()->{
+                            
+                                System.err.println("Logout Session Id: " + request.getSession().getId());
+                                APILocator.getLoginServiceAPI().doActionLogout(request, response);
+                                }
+                            );
+                        },5,TimeUnit.SECONDS);
                     
                     return Result.SKIP_NO_CHAIN;
                     

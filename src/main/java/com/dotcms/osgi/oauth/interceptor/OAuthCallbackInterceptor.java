@@ -96,6 +96,11 @@ public class OAuthCallbackInterceptor implements WebInterceptor {
             return Result.SKIP_NO_CHAIN;
             
         }
+        
+        System.err.println("Callback PreLogin Session Id: " + request.getSession().getId());
+        
+        
+        
         try {
             
             final DefaultApi20 apiProvider = apiProviderOpt.get();
@@ -113,33 +118,37 @@ public class OAuthCallbackInterceptor implements WebInterceptor {
                             .scope(scope)
                             .build();
 
-            HttpSession session = request.getSession(true);
-            final String authorizationUrl = (String) session.getAttribute(OAUTH_REDIRECT);
+
+            final String redirectAfterLogin = (String) request.getSession().getAttribute(OAUTH_REDIRECT);
             
             // With the authentication code lets try to authenticate to dotCMS
             user= Try.of(()->OauthUtils.getInstance().authenticate(request, response, service))
                             .onFailure(e->Logger.warn(this.getClass().getName(), e.getMessage(), e))
                             .getOrNull();
             
+            
+            System.err.println("Callback POST login Session Id: " + request.getSession().getId());
+            
+            
             if(user==null) {
                 Try.run(() -> response.sendRedirect("/?error=oauth+user+is+null"));
                 return Result.SKIP_NO_CHAIN;
             }
 
-            session = request.getSession(true);
+            request.getSession(true);
 
 
             // redirect onward!
 
-            session.removeAttribute(OAUTH_REDIRECT);
-            session.removeAttribute(OAUTH_SERVICE);
-            session.setAttribute(OAUTH_PROVIDER, apiProvider.getClass().getCanonicalName());
-            if (authorizationUrl == null) {
+            request.getSession().removeAttribute(OAUTH_REDIRECT);
+            request.getSession().removeAttribute(OAUTH_SERVICE);
+            request.getSession().setAttribute(OAUTH_PROVIDER, apiProvider.getClass().getCanonicalName());
+            if (redirectAfterLogin == null) {
                 return this.redirectLoggedInUser(request, response);
             }
 
             
-            response.sendRedirect(authorizationUrl);
+            response.sendRedirect(redirectAfterLogin);
             return Result.SKIP_NO_CHAIN; // needs to stop the filter chain.
 
         } catch (Exception e) {

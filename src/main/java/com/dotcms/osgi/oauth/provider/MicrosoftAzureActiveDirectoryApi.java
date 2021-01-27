@@ -247,7 +247,7 @@ public class MicrosoftAzureActiveDirectoryApi extends DefaultApi20 implements Do
                                 MSFT_LOGOUT, token, revokeCallResponse.getMessage()));
             } else {
                 Logger.info(this.getClass().getName(), "Successfully revoked access token");
-                Logger.info(this.getClass().getName(), revokeCallResponse.getBody());
+                Logger.debug(this.getClass().getName(), revokeCallResponse.getBody());
             }
 
 
