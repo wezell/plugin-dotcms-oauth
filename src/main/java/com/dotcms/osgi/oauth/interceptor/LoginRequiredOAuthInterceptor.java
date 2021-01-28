@@ -183,7 +183,7 @@ public class LoginRequiredOAuthInterceptor implements WebInterceptor {
         final String authorizationUrl = service.getAuthorizationUrl(EMPTY_TOKEN);
         Logger.info(this.getClass().getName(), "Redirecting for authentication to: " + authorizationUrl);
 
-        System.err.println("Prelogin Session Id: " + request.getSession().getId());
+        System.err.println("Initial Session Id: " + request.getSession().getId());
         
         
         

@@ -110,21 +110,9 @@ public class LogoutOAuthInterceptor implements WebInterceptor {
                 ((DotService) service).revokeToken(cookieToken);
                 Optional<String> providerLogout = ((DotService) service).getLogoutClientRedirect();
                 if(providerLogout.isPresent()) {
-                    response.sendRedirect(providerLogout.get());
+                    response.setStatus(302);
+                    response.setHeader("Location", providerLogout.get());
                     response.getWriter().close();
-                    
-                    DotConcurrentFactory.getInstance().getSubmitter()
-                        .delay(()->{
-                            Try.run(()->{
-                            
-                                System.err.println("Logout Session Id: " + request.getSession().getId());
-                                APILocator.getLoginServiceAPI().doActionLogout(request, response);
-                                }
-                            );
-                        },5,TimeUnit.SECONDS);
-                    
-                    return Result.SKIP_NO_CHAIN;
-                    
                 }
             }
 
@@ -142,8 +130,12 @@ public class LogoutOAuthInterceptor implements WebInterceptor {
     }
     
     private Result logout(HttpServletRequest request, HttpServletResponse response) {
-        Try.run(() -> APILocator.getLoginServiceAPI().doActionLogout(request, response));
-        return Result.NEXT;
+        Try.run(() -> APILocator.getLoginServiceAPI().doActionLogout(request, response)).onFailure(e->Logger.warn("LogoutOAuthInterceptor.class", e.getMessage()));
+        if(!response.isCommitted()) {
+            response.setStatus(302);
+            response.setHeader("Location", "/");
+        }
+        return Result.SKIP_NO_CHAIN;
     }
     
 

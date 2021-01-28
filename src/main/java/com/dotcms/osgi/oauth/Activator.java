@@ -9,7 +9,7 @@ import com.dotcms.osgi.oauth.interceptor.LoginRequiredOAuthInterceptor;
 import com.dotcms.osgi.oauth.interceptor.LogoutOAuthInterceptor;
 import com.dotcms.osgi.oauth.interceptor.OAuthCallbackInterceptor;
 import com.dotcms.osgi.oauth.viewtool.OAuthToolInfo;
-import com.dotmarketing.filters.AutoLoginFilter;
+import com.dotmarketing.filters.InterceptorFilter;
 import com.dotmarketing.osgi.GenericBundleActivator;
 import com.dotmarketing.util.Config;
 import com.dotmarketing.util.Logger;
@@ -24,7 +24,7 @@ public class Activator extends GenericBundleActivator {
 
 
     final WebInterceptorDelegate delegate =
-                    FilterWebInterceptorProvider.getInstance(Config.CONTEXT).getDelegate(AutoLoginFilter.class);
+                    FilterWebInterceptorProvider.getInstance(Config.CONTEXT).getDelegate(InterceptorFilter.class);
 
     public void start(org.osgi.framework.BundleContext context) throws Exception {
 
