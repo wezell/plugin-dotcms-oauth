@@ -10,7 +10,9 @@ public enum AppKeys {
         PROTECTED_RESOURCE("protectedResource"),
         GROUP_RESOURCE("groupResource"),
         BASE_ORGANIZATION_URL("baseOrganizationUrl"),
-        GROUP_PREFIX("groupPrefix")
+        GROUP_PREFIX("groupPrefix"),
+        DOTCMS_CALLBACK("dotCMSCallBackUrl")
+        
         ;
 
 

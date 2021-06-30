@@ -2,18 +2,11 @@
 *.iml
 
 *DS_Store
-*DS_Store
-*DS_Store
-*DS_Store
-*DS_Store
-*DS_Store
-*DS_Store
-*DS_Store
 # Mobile Tools for Java (J2ME)
 .mtj.tmp/
 
 # Package Files #
-*.jar
+src/main/resources/libs/*.jar
 *.war
 *.ear
 

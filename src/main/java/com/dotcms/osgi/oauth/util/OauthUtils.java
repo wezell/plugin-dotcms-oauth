@@ -33,9 +33,11 @@ import com.dotmarketing.exception.DotRuntimeException;
 import com.dotmarketing.exception.DotSecurityException;
 import com.dotmarketing.util.Logger;
 import com.dotmarketing.util.UUIDGenerator;
+import com.dotmarketing.util.UtilMethods;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.liferay.portal.model.User;
+import com.liferay.portal.util.PortalUtil;
 import io.vavr.control.Try;
 
 /**
@@ -120,9 +122,15 @@ public class OauthUtils {
      * @throws JsonProcessingException
      * @throws JsonMappingException
      */
-    public void authenticate(final HttpServletRequest request, final HttpServletResponse response,
+    public User authenticate(final HttpServletRequest request, final HttpServletResponse response,
                     final OAuthService service) throws DotDataException, JsonMappingException, JsonProcessingException {
 
+        if(PortalUtil.getUser(request)!=null) {
+            return PortalUtil.getUser(request);
+        }
+        
+        
+        
         final boolean frontEndUser =  request.getSession().getAttribute(Constants.FRONT_END_LOGIN)!=null;
         AppConfig appConfig = AppConfig.config().get();
         
@@ -171,25 +179,32 @@ public class OauthUtils {
             }
         }
 
-        if (user.isActive()) {
-            setSystemRoles(user, frontEndUser);
+        if(!user.isActive()) {
             
-            // Set the roles to the user
-            setRoles(service, jsonMap, user);
-
-            // Authenticate to dotCMS
-            Logger.info(this.getClass().getName(), "Doing OAuth login!");
-
-            
-            APILocator.getLoginServiceAPI().doCookieLogin(PublicEncryptionFactory.encryptString(user.getUserId()),
-                            request, response, false);
-
-            Logger.info(this.getClass().getName(), "Finishing OAuth login!");
-
-
-            // Keep the token in session
-            request.getSession().setAttribute(OAuthConstants.ACCESS_TOKEN, accessToken.getToken());
+            throw new DotRuntimeException("The user is not active in the system");
         }
+        
+        jsonMap.put("access_token", accessToken);
+
+        setSystemRoles(user, frontEndUser);
+        
+        // Set the roles to the user
+        setRoles(service, jsonMap, user);
+
+        // Authenticate to dotCMS
+        Logger.info(this.getClass().getName(), "Doing OAuth login!");
+
+        
+        APILocator.getLoginServiceAPI().doCookieLogin(PublicEncryptionFactory.encryptString(user.getUserId()),
+                        request, response, false);
+
+        Logger.info(this.getClass().getName(), "Finishing OAuth login!");
+
+
+        // Keep the token in session
+        request.getSession().setAttribute(OAuthConstants.ACCESS_TOKEN, accessToken.getToken());
+    
+        return user;
     } // authenticate.
 
 
@@ -276,18 +291,33 @@ public class OauthUtils {
     
     private String getEmail(Map<String, Object> jsonMap) {
 
-        return (String) jsonMap.getOrDefault("email", 
+        String email= (String) jsonMap.getOrDefault("email", 
                         jsonMap.getOrDefault("email_address", 
-                        jsonMap.getOrDefault("emailaddress", null)));
+                        jsonMap.getOrDefault("emailaddress", 
+                        jsonMap.getOrDefault("userPrincipalName", null))));
+        
+        return UtilMethods.isValidEmail(email) ? email : null;
+        
 
     }
-    
+    private String getSubject(Map<String, Object> jsonMap) {
+
+        String email= (String) jsonMap.getOrDefault("email", 
+                        jsonMap.getOrDefault("email_address", 
+                        jsonMap.getOrDefault("emailaddress", 
+                        jsonMap.getOrDefault("userPrincipalName", null))));
+        
+        return UtilMethods.isValidEmail(email) ? email : null;
+        
+
+    }
     
     private String getFirstName(Map<String, Object> jsonMap) {
         return (String) jsonMap.getOrDefault("first_name", 
                         jsonMap.getOrDefault("firstname",
                         jsonMap.getOrDefault("given_name", 
-                        jsonMap.getOrDefault("givenname", "unknown"))));
+                        jsonMap.getOrDefault("givenname", 
+                        "unknown"))));
 
     }
     
@@ -295,7 +325,9 @@ public class OauthUtils {
         return (String) jsonMap.getOrDefault("last_name", 
                         jsonMap.getOrDefault("lastname",
                         jsonMap.getOrDefault("family_name", 
-                        jsonMap.getOrDefault("familyname", "unknown"))));
+                        jsonMap.getOrDefault("familyname", 
+                        jsonMap.getOrDefault("surname", 
+                        "unknown")))));
 
     }
     

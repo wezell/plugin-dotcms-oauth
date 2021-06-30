@@ -25,7 +25,7 @@ public class AppConfig implements Serializable {
 
 
     public final boolean enableBackend, enableFrontend;
-    public final String provider, apiKey, protectedResource, groupResource, baseOrganizationUrl;
+    public final String provider, apiKey, protectedResource, groupResource, baseOrganizationUrl,dotCMSCallBackUrl;
     public final char[] apiSecret;
     public final String[] scope;
     public final Map<String, String> extraParameters;
@@ -61,6 +61,7 @@ public class AppConfig implements Serializable {
         this.apiSecret = builder.apiSecret;
         this.scope = (builder.scope == null) ? new String[0] : builder.scope;
         this.extraParameters = builder.extraParameters;
+        this.dotCMSCallBackUrl=builder.dotCMSCallBackUrl;
     }
 
 
@@ -116,6 +117,7 @@ public class AppConfig implements Serializable {
             protectedResource = baseOrganizationUrl + protectedResource;
         }
         
+        final String dotCMSCallBackUrl = Try.of(() -> secrets.get(AppKeys.DOTCMS_CALLBACK.key).getString().trim()).getOrNull();
         
         String groupResource = Try.of(() -> secrets.get(AppKeys.GROUP_RESOURCE.key).getString().trim()).getOrNull();
         
@@ -138,11 +140,18 @@ public class AppConfig implements Serializable {
         }
 
 
-        AppConfig config = AppConfig.builder().withApiKey(apiKey).withApiSecret(apiSecret)
-                        .withEnableBackend(enableBackend).withEnableFrontend(enableFrontend)
-                        .withExtraParameters(extraParameters).withGroupResource(groupResource)
-                        .withProtectedResource(protectedResource).withBaseOrganizationUrl(baseOrganizationUrl)
-                        .withProvider(provider).withScope(scope).build();
+        AppConfig config = AppConfig.builder()
+                        .withApiKey(apiKey)
+                        .withApiSecret(apiSecret)
+                        .withEnableBackend(enableBackend)
+                        .withEnableFrontend(enableFrontend)
+                        .withExtraParameters(extraParameters)
+                        .withGroupResource(groupResource)
+                        .withProtectedResource(protectedResource)
+                        .withBaseOrganizationUrl(baseOrganizationUrl)
+                        .withProvider(provider)
+                        .withDotCMSCallBackUrl(dotCMSCallBackUrl)
+                        .withScope(scope).build();
 
 
         AppConfigThreadLocal.INSTANCE.setConfig(Optional.ofNullable(config));
@@ -189,6 +198,7 @@ public class AppConfig implements Serializable {
         private String provider;
         private String apiKey;
         private String baseOrganizationUrl;
+        private String  dotCMSCallBackUrl;
         private char[] apiSecret;
         private String[] scope;
         private Map<String, String> extraParameters = Collections.emptyMap();
@@ -205,6 +215,7 @@ public class AppConfig implements Serializable {
             this.apiKey = UtilMethods.isSet(appConfig.apiKey) ? appConfig.apiKey : null;
             this.apiSecret = UtilMethods.isSet(appConfig.apiSecret) ? appConfig.apiSecret : null;
             this.scope = appConfig.scope == null ? new String[0] : appConfig.scope;
+            this.dotCMSCallBackUrl =  UtilMethods.isSet(appConfig.dotCMSCallBackUrl) ? appConfig.dotCMSCallBackUrl : null;
             this.extraParameters = appConfig.extraParameters;
             this.baseOrganizationUrl =
                             UtilMethods.isSet(appConfig.baseOrganizationUrl) ? appConfig.baseOrganizationUrl : null;
@@ -219,7 +230,12 @@ public class AppConfig implements Serializable {
             this.enableFrontend = enableFrontend;
             return this;
         }
-
+        
+        public Builder withDotCMSCallBackUrl(@Nonnull String dotCMSCallBackUrl) {
+            this.dotCMSCallBackUrl = dotCMSCallBackUrl;
+            return this;
+        }
+        
         public Builder withBaseOrganizationUrl(@Nonnull String baseOrganizationUrl) {
             this.baseOrganizationUrl = UtilMethods.isSet(baseOrganizationUrl) ? baseOrganizationUrl : null;
             return this;

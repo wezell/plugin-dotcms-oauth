@@ -1,4 +1,4 @@
-# plugins-dotcms-oauth
+# OAuth 2 / Open Id Connect Auth
 
 This is an osgi plugin that provides an example of single sign-on using OAuth2.  This intended to be a drop in replacement for the standard dotcms login, both for front end users and for backend users and effectively disables the out of the box authentication.  This plugin is provided as a code example and should not be used in a production environment without careful understanding of what the code does.
 
@@ -10,36 +10,32 @@ For reference:
 * https://developer.okta.com/authentication-guide/
 * https://www.pingidentity.com/content/developer/en/resources/oauth-2-0-developers-guide.html
  
+### About the Implementaion
+Under the covers, this plugin uses the very handy Scribe library to provide the the OAuth implementataions.  You can see the some of the providers that it supports.  These implementations should be supportable by this plugin but they will need some work.
+
+https://github.com/scribejava/scribejava/tree/master/scribejava-apis/src/main/java/com/github/scribejava/apis
+
 ---
---- 
+
 # Plugin Components
 
 ## Interceptors
 ### com.dotcms.osgi.oauth.interceptor.LoginRequiredOAuthInterceptor
 Interceptor class that "intercepts" urls that require authentication, by default:
-
-* For backend 
-
-```
-/html/portal/login,/dotAdmin/, /c/
-```
-* For Frontend
-
-
-```
-/dotCMS/login,/application/login/login,/login*
-```
+* For backend `/dotAdmin, /dwr, /c/`
+* For front end `/dotCMS/login`
 
 Those URLs can be changed directly in the interceptor class modifying the `getFilters` method.
 
-
+https://github.com/dotCMS/plugin-dotcms-oauth/blob/master/src/main/java/com/dotcms/osgi/oauth/interceptor/LoginRequiredOAuthInterceptor.java#L61
 
 When one of those URLs are intercepted the code based on the selected authentication provider will redirect the user in order to authenticate himself with the provider.
 
 ### com.dotcms.osgi.oauth.interceptor.OAuthCallbackInterceptor
-Interceptor class that "intercepts" the configured call back url after the user is authenticated with the authentication provider.  
+Interceptor class that "intercepts" the configured call back url after the user is authenticated with the authentication provider.
 
-The callback url is `/api/v1/oauth2/callback`
+You can change that url in the `oauth2.properties`:
+* `CALLBACK_URL=/app/oauth2/callback`
 
 When the call back url is intercepted the provider returns an authorization code that is use to request an authentication token in order to query the user data and authenticate him in dotCMS. 
 
@@ -123,6 +119,21 @@ Ping20Api_ORGANIZATION_URL=YOUR_PING_ORG_URL
 Ping20Api_PROTECTED_RESOURCE_URL=YOUR_PING_ORG_URL/idp/userinfo.openid
 Ping20Api_FIRST_NAME_PROP=given_name
 Ping20Api_LAST_NAME_PROP=family_name
+```
+
+## RESTful end points
+
+### com.dotcms.osgi.oauth.rest.JsonWebTokenResource
+End point that allows to use an Oauth2 token to authenticate with dotCMS and to return a dotCMS token
+
+```
+curl -v -XPOST http://localhost:8080/api/v1/authentication/token \
+-H "Content-Type:application/json" \
+-d '{
+    "oauthToken":"eyJhbGciOiJSUzI1NiIsImtpZCI6ImsxIn0.eyJzY29wZSI6WyJvcGVuaWQiLCJlbWFpbCIsInByb2ZpbGUiLCJjbXMiXSwiY2xpZW50X2lkX25hbWUiOiJkb3RjbXMiLCJzdWIiOiJwcmFzYW5uYSIsIk9yZ05hbWUiOiJCbGFoIiwiVXNlcm5hbWUiOiJwcmFzYW5uYSIsImhvdXNlIjoiQ01TIEFkbWluaXN0cmF0b3IiLCJlbWFpbCI6InVzZXIuMzc2QGV4YW1wbGUuY29tIiwiZXhwIjoxNTM5MjE3MzYzfQ.LuIWdade2G7_87BNPFzb7ZaZqaq0gV_a6-S316rjEmmcKH67nCmpcH9TXEdPIUkOsD7rDb8AQ8n6c9DgCcxg4QRJTkDQ53dDY4V0nxGJuBD-xCE4gmIQPmLDQ1lXNKWNvy_7X8DB4wiJxwnRA7J8qVAzitavWBPURXOCB_EtR9KL2_E8rkRDO6q7i906KAkjfmQh7cfY3_flgRbyv9igEv8PNh7N3KjX_f5o-BJ3-Ak86K-yenVDzmgdQWZeXIN_7HAn5BvK6eWAK_4bltbJzB-mZOxzhuIisoqFtgmbhC2Pq7cB1AS8bbGxMu65LIhZt7Z5zVxTpRN9O456LX9NKA",
+    "oauthProvider":"com.dotcms.osgi.oauth.provider.Google20Api",
+    "expirationDays": 10 
+}'
 ```
 
 ---
